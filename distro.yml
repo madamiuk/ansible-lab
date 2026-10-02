@@ -1,0 +1,18 @@
+---
+- name: Rozpoznawanie dystrybucji
+  hosts: all
+
+  tasks:
+    - name: Pokaż dystrybucję
+      ansible.builtin.debug:
+        msg: "Host {{ inventory_hostname }} działa na {{ ansible_facts['distribution'] }}"
+
+    - name: Informacja dla Oracle Linux
+      ansible.builtin.debug:
+        msg: "To jest Oracle Linux"
+      when: ansible_facts['distribution'] == 'OracleLinux'
+
+    - name: Informacja dla Debiana
+      ansible.builtin.debug:
+        msg: "To jest Debian"
+      when: ansible_facts['distribution'] == 'Debian'

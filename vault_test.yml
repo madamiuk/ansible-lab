@@ -1,0 +1,8 @@
+---
+- name: Test Ansible Vault
+  hosts: all
+
+  tasks:
+    - name: Pokaż wiadomość z Vault
+      ansible.builtin.debug:
+        msg: "{{ vault_test_message }}"

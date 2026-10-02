@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ansible - {{ inventory_hostname }}</title>
+</head>
+<body>
+    <h1>Apache skonfigurowany przez Ansible - wersja 2</h1>
+
+    <p>Serwer: {{ inventory_hostname }}</p>
+    <p>System: {{ ansible_facts['distribution'] }}</p>
+    <p>Wersja: {{ ansible_facts['distribution_version'] }}</p>
+    <p>Architektura: {{ ansible_facts['architecture'] }}</p>
+    <p>Python: {{ ansible_facts['python_version'] }}</p>
+    <p>Środowisko: {{ server_environment }}</p>
+    <p>Wiadomość: {{ apache_message }}</p>
+</body>
+</html>

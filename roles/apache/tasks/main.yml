@@ -1,0 +1,25 @@
+---
+- name: Wygeneruj stronę WWW
+  ansible.builtin.template:
+    src: apache_index.j2
+    dest: /var/www/html/index.html
+    mode: '0644'
+  notify: Restart Apache
+
+- name: Uruchom Apache
+  ansible.builtin.service:
+    name: "{{ apache_service_map[ansible_facts['distribution']] }}"
+    state: started
+    enabled: true
+
+- name: Pokaż apache_message
+  ansible.builtin.debug:
+    var: apache_message
+
+- name: Zezwól na ruch HTTP w firewalld
+  ansible.posix.firewalld:
+    service: http
+    permanent: true
+    state: enabled
+    immediate: true
+  when: ansible_facts['distribution'] == 'OracleLinux'

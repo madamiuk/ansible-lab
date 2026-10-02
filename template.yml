@@ -1,0 +1,10 @@
+---
+- name: Nauka template i Jinja2
+  hosts: all
+
+  tasks:
+    - name: Wygeneruj plik informacyjny
+      ansible.builtin.template:
+        src: hostinfo.j2
+        dest: /tmp/ansible-host-info.txt
+        mode: '0644'

@@ -1,0 +1,33 @@
+---
+- name: Zarządzanie usługą Apache
+  hosts: all
+  become: true
+
+  tasks:
+
+    - name: Ustaw nazwę usługi na Oracle Linux
+      ansible.builtin.set_fact:
+        apache_service: httpd
+      when: ansible_facts['distribution'] == 'OracleLinux'
+
+    - name: Ustaw nazwę usługi na Debianie
+      ansible.builtin.set_fact:
+        apache_service: apache2
+      when: ansible_facts['distribution'] == 'Debian'
+
+    - name: Uruchom Apache i włącz przy starcie systemu
+      ansible.builtin.service:
+        name: "{{ apache_service }}"
+        state: started
+        enabled: true
+
+    - name: Sprawdź stan Apache
+      ansible.builtin.command:
+        cmd: "systemctl is-active {{ apache_service }}"
+      register: apache_status
+      changed_when: false
+      failed_when: apache_status.rc != 0
+
+    - name: Pokaż stan Apache
+      ansible.builtin.debug:
+        var: apache_status

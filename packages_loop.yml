@@ -1,0 +1,14 @@
+---
+- name: Instalacja pakietów przez loop
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Zainstaluj pakiety
+      ansible.builtin.package:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - vim
+        - tree
+        - curl

@@ -1,0 +1,15 @@
+---
+- name: Nauka handlerów
+  hosts: all
+
+  tasks:
+    - name: Utwórz plik testowy
+      ansible.builtin.copy:
+        content: "Ansible test\n"
+        dest: /tmp/ansible-handler-test.txt
+      notify: Test handler
+
+  handlers:
+    - name: Test handler
+      ansible.builtin.debug:
+        msg: "Handler został uruchomiony, ponieważ plik został zmieniony"

@@ -1,0 +1,4 @@
+---
+server_environment: production
+apache_message: "Wiadomość z group_vars/oracle"
+

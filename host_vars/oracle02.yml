@@ -1,0 +1,3 @@
+---
+server_environment: test
+apache_message: "Wiadomość tylko dla oracle02"

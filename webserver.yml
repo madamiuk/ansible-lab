@@ -1,0 +1,17 @@
+---
+- name: Instalacja serwera WWW
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Zainstaluj Apache na Oracle Linux
+      ansible.builtin.package:
+        name: httpd
+        state: present
+      when: ansible_facts['distribution'] == 'OracleLinux'
+
+    - name: Zainstaluj Apache na Debianie
+      ansible.builtin.package:
+        name: apache2
+        state: present
+      when: ansible_facts['distribution'] == 'Debian'

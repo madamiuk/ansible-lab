@@ -1,0 +1,17 @@
+# Python virtual environment
+venv/
+
+# macOS
+.DS_Store
+
+# Ansible
+*.retry
+.ansible/
+
+# Editor / IDE
+.vscode/
+.idea/
+
+# Local Vault password files
+.vault_pass
+vault-password.txt

@@ -1,0 +1,10 @@
+---
+- name: Instalacja pakietów na różnych dystrybucjach
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Zainstaluj tree
+      ansible.builtin.package:
+        name: tree
+        state: present

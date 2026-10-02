@@ -1,0 +1,30 @@
+---
+- name: Nauka block rescue always
+  hosts: all
+
+  tasks:
+    - name: Eksperyment z obsługą błędu
+      block:
+
+        - name: Utwórz plik testowy
+          ansible.builtin.file:
+            path: /tmp/ansible-block-test.txt
+            state: file
+            mode: '0644'
+
+        - name: Celowo wywołaj błąd
+          ansible.builtin.command:
+            cmd: /bin/false
+          changed_when: false
+
+      rescue:
+
+        - name: Obsłuż błąd
+          ansible.builtin.debug:
+            msg: "Wystąpił błąd - wykonuję procedurę rescue"
+
+      always:
+
+        - name: Zawsze wykonaj ten krok
+          ansible.builtin.debug:
+            msg: "Sekcja always została wykonana"

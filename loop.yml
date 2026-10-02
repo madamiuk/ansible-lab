@@ -1,0 +1,15 @@
+---
+- name: Nauka pętli loop
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Utwórz katalogi aplikacji
+      ansible.builtin.file:
+        path: "/opt/ansible-lab/{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - app
+        - log
+        - data

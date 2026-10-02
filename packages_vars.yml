@@ -1,0 +1,17 @@
+---
+- name: Instalacja pakietów ze zmiennej
+  hosts: all
+  become: true
+
+  vars:
+    packages:
+      - vim
+      - tree
+      - curl
+
+  tasks:
+    - name: Zainstaluj pakiety
+      ansible.builtin.package:
+        name: "{{ item }}"
+        state: present
+      loop: "{{ packages }}"

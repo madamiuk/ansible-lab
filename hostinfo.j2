@@ -1,0 +1,6 @@
+Host: {{ inventory_hostname }}
+System: {{ ansible_facts['distribution'] }}
+Version: {{ ansible_facts['distribution_version'] }}
+Architecture: {{ ansible_facts['architecture'] }}
+Python: {{ ansible_facts['python_version'] }}
+Environment: {{ server_environment }}

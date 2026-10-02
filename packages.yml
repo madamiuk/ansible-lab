@@ -1,0 +1,15 @@
+---
+- name: Zarządzanie pakietami
+  hosts: oracle
+  become: true
+
+  tasks:
+    - name: Zainstaluj vim
+      ansible.builtin.package:
+        name: vim
+        state: present
+
+    - name: Zainstaluj tree
+      ansible.builtin.package:
+        name: tree
+        state: present

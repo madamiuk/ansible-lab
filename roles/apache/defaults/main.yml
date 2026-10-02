@@ -1,0 +1,6 @@
+---
+apache_service_map:
+  OracleLinux: httpd
+  Debian: apache2
+
+apache_message: "Domyslna wiadomość z roli"

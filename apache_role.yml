@@ -1,0 +1,7 @@
+---
+- name: Konfiguracja Apache przez role
+  hosts: all
+  become: true
+
+  roles:
+    - apache

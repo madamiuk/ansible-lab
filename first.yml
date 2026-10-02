@@ -1,0 +1,107 @@
+---
+- name: Mój pierwszy playbook
+  hosts: oracle
+  become: true
+
+  vars:
+    test_user: ma
+    test_group: ma
+
+  tasks:
+
+    - name: Utwórz katalog testowy
+      ansible.builtin.file:
+        path: "{{ test_dir }}"
+        state: directory
+        owner: "{{ test_user }}"
+        group: wheel
+        mode: '0755'
+
+    - name: Utwórz plik konfiguracyjny
+      ansible.builtin.copy:
+        content: "Ansible działa bardzo poprawnie\n"
+        dest: "{{ test_dir }}/hello.txt"
+        owner: "{{ test_user }}"
+        group: "{{ test_group }}"
+        mode: '0644'
+
+    - name: Pokaż informacje o systemie
+      ansible.builtin.debug:
+        msg: "System: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}, architektura: {{ ansible_facts['architecture'] }}"
+
+    - name: Sprawdź czy to Oracle Linux 9
+      ansible.builtin.debug:
+        msg: "Tak, to jest Oracle Linux 9"
+      when:
+        - ansible_facts['distribution'] == 'OracleLinux'
+        - ansible_facts['distribution_major_version'] == '9'
+
+    - name: Sprawdź czy to Ubuntu
+      ansible.builtin.debug:
+        msg: "Tak, to jest Ubuntu"
+      when:
+        - ansible_facts['distribution'] == 'Ubuntu'
+
+    - name: Utwórz plik tylko na Oracle Linux
+      ansible.builtin.copy:
+        content: "Ten plik został utworzony na Oracle Linux.\n"
+        dest: "{{ test_dir }}/oracle-linux.txt"
+        owner: "{{ test_user }}"
+        group: "{{ test_group }}"
+        mode: '0644'
+      when:
+        - ansible_facts['distribution'] == 'OracleLinux'
+
+    - name: Sprawdź kernel
+      ansible.builtin.command: uname -r
+      register: kernel_result
+      changed_when: false
+
+    - name: Wyświetl wersję kernela
+      ansible.builtin.debug:
+        msg: "Kernel: {{ kernel_result.stdout }}"
+
+    - name: Sprawdź status pliku hello.txt
+      ansible.builtin.stat:
+        path: "{{ test_dir }}/hello.txt"
+      register: hello_file
+
+    - name: Pokaż czy hello.txt istnieje
+      ansible.builtin.debug:
+        msg: "Plik istnieje: {{ hello_file.stat.exists }}"
+
+    - name: Pokaż wersję Oracle Linux
+      ansible.builtin.debug:
+        msg: "Host {{ inventory_hostname }} ma Oracle Linux {{ ansible_facts['distribution_major_version'] }}"
+
+    - name: Komunikat dla Oracle Linux 9
+      ansible.builtin.debug:
+        msg: "To jest Oracle Linux 9 - wykonujemy zadanie dla OL9"
+      when:
+        - ansible_facts['distribution_major_version'] == '9'
+
+    - name: Komunikat dla Oracle Linux 10
+      ansible.builtin.debug:
+        msg: "To jest Oracle Linux 10 - wykonujemy zadanie dla OL10"
+      when:
+        - ansible_facts['distribution_major_version'] == '10'
+
+    - name: Utwórz plik tylko na Oracle Linux 9
+      ansible.builtin.copy:
+        content: "Ten plik został utworzony na Oracle Linux 9.\n"
+        dest: "{{ test_dir }}/oracle9.txt"
+        owner: "{{ test_user }}"
+        group: "{{ test_group }}"
+        mode: '0644'
+      when:
+        - ansible_facts['distribution_major_version'] == '9'
+
+    - name: Utwórz plik tylko na Oracle Linux 10
+      ansible.builtin.copy:
+        content: "Ten plik został utworzony na Oracle Linux 10.\n"
+        dest: "{{ test_dir }}/oracle10.txt"
+        owner: "{{ test_user }}"
+        group: "{{ test_group }}"
+        mode: '0644'
+      when:
+        - ansible_facts['distribution_major_version'] == '10'
