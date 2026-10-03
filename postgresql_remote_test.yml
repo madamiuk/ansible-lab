@@ -1,0 +1,38 @@
+---
+- name: Test zdalnego połączenia z PostgreSQL
+  hosts: webservers
+  gather_facts: true
+  become: true
+
+  vars:
+    postgresql_client_package_map:
+      Debian: postgresql-client
+      OracleLinux: postgresql
+
+  tasks:
+    - name: Zainstaluj klienta PostgreSQL
+      ansible.builtin.package:
+        name: "{{ postgresql_client_package_map[ansible_facts['distribution']] }}"
+        state: present
+
+    - name: Sprawdź połączenie z database01
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -h
+          - 192.168.64.20
+          - -U
+          - "{{ postgresql_db_user }}"
+          - -d
+          - "{{ postgresql_db_name }}"
+          - -c
+          - "SELECT current_user, current_database();"
+      environment:
+        PGPASSWORD: "{{ postgresql_db_password }}"
+      register: psql_result
+      changed_when: false
+      no_log: true
+
+    - name: Pokaż wynik połączenia
+      ansible.builtin.debug:
+        var: psql_result.stdout

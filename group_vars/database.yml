@@ -3,3 +3,16 @@ postgresql_db_name: ansible_lab
 postgresql_db_user: ansible_app
 postgresql_db_password: "{{ vault_db_password }}"
 postgresql_table: app_data
+
+postgresql_config_file: /etc/postgresql/17/main/postgresql.conf
+postgresql_hba_file: /etc/postgresql/17/main/pg_hba.conf
+
+postgresql_listen_addresses:
+  - 127.0.0.1
+  - 192.168.64.20
+
+postgresql_allowed_hosts:
+  - 192.168.64.7
+  - 192.168.64.8
+  - 192.168.64.12
+  - 192.168.64.14

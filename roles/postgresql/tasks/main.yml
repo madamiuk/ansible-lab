@@ -53,3 +53,22 @@
       - created_at timestamptz
     state: present
   no_log: true
+
+- name: Skonfiguruj adresy nasłuchiwania PostgreSQL
+  ansible.builtin.lineinfile:
+    path: "{{ postgresql_config_file }}"
+    regexp: "^#?listen_addresses\\s*="
+    line: "listen_addresses = '{{ postgresql_listen_addresses | join(',') }}'"
+  notify: Restart PostgreSQL
+
+- name: Zezwól webserverom na dostęp do bazy
+  community.postgresql.postgresql_pg_hba:
+    dest: "{{ postgresql_hba_file }}"
+    contype: host
+    databases: "{{ postgresql_db_name }}"
+    users: "{{ postgresql_db_user }}"
+    source: "{{ item }}/32"
+    method: scram-sha-256
+    state: present
+  loop: "{{ postgresql_allowed_hosts }}"
+  notify: Restart PostgreSQL
