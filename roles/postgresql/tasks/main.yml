@@ -1,0 +1,55 @@
+---
+- name: Zainstaluj PostgreSQL
+  ansible.builtin.apt:
+    name: "{{ postgresql_package }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Zainstaluj bibliotekę Python dla PostgreSQL
+  ansible.builtin.apt:
+    name: "{{ postgresql_python_package }}"
+    state: present
+
+- name: Zainstaluj ACL
+  ansible.builtin.apt:
+    name: "{{ postgresql_acl_package }}"
+    state: present
+
+- name: Uruchom i włącz PostgreSQL
+  ansible.builtin.service:
+    name: "{{ postgresql_service }}"
+    state: started
+    enabled: true
+
+- name: Utwórz użytkownika PostgreSQL
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    name: "{{ postgresql_db_user }}"
+    password: "{{ postgresql_db_password }}"
+    state: present
+    role_attr_flags: LOGIN
+  no_log: true
+
+- name: Utwórz bazę PostgreSQL
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_db:
+    name: "{{ postgresql_db_name }}"
+    owner: "{{ postgresql_db_user }}"
+    state: present
+
+- name: Utwórz tabelę aplikacyjną
+  community.postgresql.postgresql_table:
+    login_host: 127.0.0.1
+    login_user: "{{ postgresql_db_user }}"
+    login_password: "{{ postgresql_db_password }}"
+    login_db: "{{ postgresql_db_name }}"
+    name: "{{ postgresql_table }}"
+    columns:
+      - id bigserial primary key
+      - hostname text
+      - created_at timestamptz
+    state: present
+  no_log: true

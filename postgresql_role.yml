@@ -1,0 +1,7 @@
+---
+- name: Konfiguracja PostgreSQL
+  hosts: database
+  become: true
+
+  roles:
+    - postgresql

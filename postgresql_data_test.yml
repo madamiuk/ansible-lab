@@ -1,0 +1,43 @@
+---
+- name: Test danych PostgreSQL
+  hosts: database
+  gather_facts: false
+
+  tasks:
+    - name: Dodaj rekord testowy
+      community.postgresql.postgresql_query:
+        login_host: 127.0.0.1
+        login_user: "{{ postgresql_db_user }}"
+        login_password: "{{ postgresql_db_password }}"
+        login_db: "{{ postgresql_db_name }}"
+        query: |
+          INSERT INTO {{ postgresql_table }} (hostname, created_at)
+          SELECT 'database01', CURRENT_TIMESTAMP
+          WHERE NOT EXISTS (
+            SELECT 1
+            FROM {{ postgresql_table }}
+            WHERE hostname = 'database01'
+          );
+      register: insert_result
+      no_log: true
+
+    - name: Pokaż liczbę zmienionych wierszy
+      ansible.builtin.debug:
+        var: insert_result.rowcount
+
+    - name: Odczytaj dane
+      community.postgresql.postgresql_query:
+        login_host: 127.0.0.1
+        login_user: "{{ postgresql_db_user }}"
+        login_password: "{{ postgresql_db_password }}"
+        login_db: "{{ postgresql_db_name }}"
+        query: |
+          SELECT id, hostname, created_at
+          FROM {{ postgresql_table }}
+          ORDER BY id;
+      register: data_result
+      no_log: true
+
+    - name: Pokaż dane
+      ansible.builtin.debug:
+        var: data_result.query_result

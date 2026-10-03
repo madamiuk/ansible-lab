@@ -1,0 +1,14 @@
+---
+- name: Test połączenia z PostgreSQL
+  hosts: database
+  gather_facts: false
+
+  tasks:
+    - name: Sprawdź logowanie użytkownika aplikacyjnego
+      become: false
+      community.postgresql.postgresql_ping:
+        login_host: 127.0.0.1
+        login_user: "{{ postgresql_db_user }}"
+        login_password: "{{ postgresql_db_password }}"
+        login_db: "{{ postgresql_db_name }}"
+      no_log: true

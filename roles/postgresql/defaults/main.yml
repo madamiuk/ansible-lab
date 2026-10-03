@@ -1,0 +1,5 @@
+---
+postgresql_package: postgresql
+postgresql_service: postgresql
+postgresql_python_package: python3-psycopg2
+postgresql_acl_package: acl
