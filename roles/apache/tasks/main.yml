@@ -1,4 +1,9 @@
 ---
+- name: Zainstaluj Apache
+  ansible.builtin.package:
+    name: "{{ apache_package_map[ansible_facts['distribution']] }}"
+    state: present
+
 - name: Wygeneruj stronę WWW
   ansible.builtin.template:
     src: apache_index.j2
