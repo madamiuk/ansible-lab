@@ -1,0 +1,9 @@
+---
+- name: Test szablonu hosts
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Wyrenderuj hosts.j2
+      ansible.builtin.debug:
+        msg: "{{ lookup('template', 'templates/hosts.j2') }}"

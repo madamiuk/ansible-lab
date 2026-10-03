@@ -1,0 +1,13 @@
+---
+- name: Konfiguracja /etc/hosts
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Skonfiguruj /etc/hosts
+      ansible.builtin.template:
+        src: templates/hosts.j2
+        dest: /etc/hosts
+        owner: root
+        group: root
+        mode: '0644'
