@@ -19,3 +19,7 @@ wildfly_service: wildfly
 
 wildfly_bind_address: 127.0.0.1
 wildfly_management_bind_address: 127.0.0.1
+
+wildfly_deployments_dir: "{{ wildfly_home }}/standalone/deployments"
+wildfly_app_name: hello-wildfly
+wildfly_war_source: "{{ playbook_dir }}/applications/hello-wildfly/target/hello-wildfly.war"

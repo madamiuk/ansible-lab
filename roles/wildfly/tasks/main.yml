@@ -65,3 +65,11 @@
     state: started
     daemon_reload: true
   when: not ansible_check_mode
+
+- name: Wdróż aplikację hello-wildfly
+  ansible.builtin.copy:
+    src: "{{ wildfly_war_source }}"
+    dest: "{{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.war"
+    owner: "{{ wildfly_user }}"
+    group: "{{ wildfly_group }}"
+    mode: '0644'
