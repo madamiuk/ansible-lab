@@ -9,6 +9,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.QueryParam;
 import java.util.List;
+import pl.ansible.lab.dto.AppDataDto;
 
 @RequestScoped
 @Path("/hello")
@@ -29,14 +30,14 @@ public class HelloResource {
     @GET
     @Path("/data")
     @Produces(MediaType.APPLICATION_JSON)
-    public List<AppData> data() {
+    public List<AppDataDto> data() {
         return appDataService.findAll();
     }
 
     @POST
     @Path("/data")
     @Produces(MediaType.APPLICATION_JSON)
-    public AppData createData(@QueryParam("hostname") String hostname) {
+    public AppDataDto createData(@QueryParam("hostname") String hostname) {
         if (hostname == null || hostname.isBlank()) {
             throw new IllegalArgumentException("Brak parametru hostname");
         }
