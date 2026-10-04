@@ -11,6 +11,9 @@ import jakarta.ws.rs.QueryParam;
 import java.util.List;
 import pl.ansible.lab.dto.AppDataDto;
 import jakarta.ws.rs.BadRequestException;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 @RequestScoped
 @Path("/hello")
@@ -38,12 +41,16 @@ public class HelloResource {
     @POST
     @Path("/data")
     @Produces(MediaType.APPLICATION_JSON)
-    public AppDataDto createData(@QueryParam("hostname") String hostname) {
-        if (hostname == null || hostname.isBlank()) {
-            throw new BadRequestException("Brak parametru hostname");
-        }
+    public AppDataDto createData(
+        @QueryParam("hostname")
+        @NotBlank(message = "hostname jest wymagany")
+        @Size(max = 253, message = "hostname może mieć maksymalnie 253 znaki")
+        @Pattern(
+                regexp = "^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$",
+                message = "hostname zawiera niedozwolone znaki"
+        )
+        String hostname) {
 
-        return appDataService.create(hostname);
+    return appDataService.create(hostname);
     }
-
 }
