@@ -1,0 +1,10 @@
+---
+wildfly_datasource_name: AnsibleLabDS
+wildfly_datasource_jndi_name: java:/jdbc/AnsibleLabDS
+
+wildfly_datasource_host: 192.168.64.20
+wildfly_datasource_port: 5432
+
+wildfly_datasource_min_pool_size: 1
+wildfly_datasource_max_pool_size: 5
+wildfly_datasource_jta: true

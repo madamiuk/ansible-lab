@@ -23,3 +23,14 @@ wildfly_management_bind_address: 127.0.0.1
 wildfly_deployments_dir: "{{ wildfly_home }}/standalone/deployments"
 wildfly_app_name: hello-wildfly
 wildfly_war_source: "{{ playbook_dir }}/applications/hello-wildfly/target/hello-wildfly.war"
+
+wildfly_postgresql_jdbc_package: libpostgresql-jdbc-java
+wildfly_postgresql_jdbc_jar: /usr/share/java/postgresql.jar
+
+wildfly_postgresql_module_name: org.postgresql.jdbc
+wildfly_postgresql_module_dir: "{{ wildfly_home }}/modules/org/postgresql/jdbc/main"
+
+wildfly_postgresql_driver_name: postgresql
+wildfly_postgresql_driver_module: org.postgresql.jdbc
+wildfly_postgresql_driver_class: org.postgresql.Driver
+wildfly_postgresql_driver_xa_class: org.postgresql.xa.PGXADataSource

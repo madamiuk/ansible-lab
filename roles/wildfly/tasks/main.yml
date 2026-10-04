@@ -73,3 +73,109 @@
     owner: "{{ wildfly_user }}"
     group: "{{ wildfly_group }}"
     mode: '0644'
+
+- name: Zainstaluj sterownik JDBC PostgreSQL
+  ansible.builtin.apt:
+    name: "{{ wildfly_postgresql_jdbc_package }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Utwórz katalog modułu PostgreSQL
+  ansible.builtin.file:
+    path: "{{ wildfly_postgresql_module_dir }}"
+    state: directory
+    owner: "{{ wildfly_user }}"
+    group: "{{ wildfly_group }}"
+    mode: '0755'
+  when: not ansible_check_mode
+
+- name: Udostępnij sterownik PostgreSQL jako moduł WildFly
+  ansible.builtin.file:
+    src: "{{ wildfly_postgresql_jdbc_jar }}"
+    dest: "{{ wildfly_postgresql_module_dir }}/postgresql.jar"
+    state: link
+    owner: "{{ wildfly_user }}"
+    group: "{{ wildfly_group }}"
+  when: not ansible_check_mode
+
+- name: Skonfiguruj moduł PostgreSQL
+  ansible.builtin.template:
+    src: postgresql-module.xml.j2
+    dest: "{{ wildfly_postgresql_module_dir }}/module.xml"
+    owner: "{{ wildfly_user }}"
+    group: "{{ wildfly_group }}"
+    mode: '0644'
+  when: not ansible_check_mode
+  notify: Restart WildFly
+
+- name: Sprawdź rejestrację drivera PostgreSQL w WildFly
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - "{{ wildfly_user }}"
+      - --
+      - "{{ wildfly_home }}/bin/jboss-cli.sh"
+      - --connect
+      - "--command=/subsystem=datasources/jdbc-driver={{ wildfly_postgresql_driver_name }}:read-resource"
+  register: wildfly_postgresql_driver_check
+  changed_when: false
+  failed_when: wildfly_postgresql_driver_check.rc not in [0, 1]
+
+- name: Zarejestruj driver PostgreSQL w WildFly
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - "{{ wildfly_user }}"
+      - --
+      - "{{ wildfly_home }}/bin/jboss-cli.sh"
+      - --connect
+      - "--command=/subsystem=datasources/jdbc-driver={{ wildfly_postgresql_driver_name }}:add(driver-name={{ wildfly_postgresql_driver_name }},driver-module-name={{ wildfly_postgresql_driver_module }},driver-class-name={{ wildfly_postgresql_driver_class }},driver-xa-datasource-class-name={{ wildfly_postgresql_driver_xa_class }},jdbc-compliant=true)"
+  when:
+    - not ansible_check_mode
+    - wildfly_postgresql_driver_check.rc == 1
+  register: wildfly_postgresql_driver_add
+  changed_when: true
+
+- name: Sprawdź datasource PostgreSQL w WildFly
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - "{{ wildfly_user }}"
+      - --
+      - "{{ wildfly_home }}/bin/jboss-cli.sh"
+      - --connect
+      - "--command=/subsystem=datasources/data-source={{ wildfly_datasource_name }}:read-resource"
+  register: wildfly_datasource_check
+  changed_when: false
+  failed_when: wildfly_datasource_check.rc not in [0, 1]
+
+- name: Utwórz datasource PostgreSQL w WildFly
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - "{{ wildfly_user }}"
+      - --
+      - "{{ wildfly_home }}/bin/jboss-cli.sh"
+      - --connect
+      - >-
+        --command=/subsystem=datasources/data-source={{ wildfly_datasource_name }}:add(
+        jndi-name={{ wildfly_datasource_jndi_name }},
+        driver-name={{ wildfly_postgresql_driver_name }},
+        connection-url=jdbc:postgresql://{{ wildfly_datasource_host }}:{{ wildfly_datasource_port }}/{{ postgresql_db_name }},
+        user-name={{ postgresql_db_user }},
+        password="{{ postgresql_db_password }}",
+        jta={{ wildfly_datasource_jta | lower }},
+        min-pool-size={{ wildfly_datasource_min_pool_size }},
+        max-pool-size={{ wildfly_datasource_max_pool_size }}
+        )
+  when:
+    - not ansible_check_mode
+    - wildfly_datasource_check.rc == 1
+  register: wildfly_datasource_add
+  changed_when: true
+  no_log: true
