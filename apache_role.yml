@@ -1,6 +1,6 @@
 ---
 - name: Konfiguracja Apache przez role
-  hosts: webservers
+  hosts: apache
   become: true
 
   roles:
