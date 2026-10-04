@@ -12,6 +12,32 @@
     state: started
     enabled: true
 
+- name: Zainstaluj sterownik JDBC PostgreSQL
+  ansible.builtin.apt:
+    name: "{{ tomcat_jdbc_package }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Udostępnij sterownik JDBC Tomcatowi
+  ansible.builtin.file:
+    src: "{{ tomcat_jdbc_source }}"
+    dest: "{{ tomcat_jdbc_dest }}"
+    state: link
+    owner: root
+    group: root
+  notify: Restart Tomcat
+
+- name: Skonfiguruj JNDI DataSource dla hello-tomcat
+  ansible.builtin.template:
+    src: hello-tomcat.xml.j2
+    dest: "/etc/tomcat11/Catalina/localhost/{{ tomcat_app_name }}.xml"
+    owner: root
+    group: tomcat
+    mode: '0640'
+  notify: Restart Tomcat
+  no_log: true
+
 - name: Wdróż aplikację hello-tomcat
   ansible.builtin.copy:
     src: "{{ tomcat_war_source }}"

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Context>
+    <Resource
+        name="{{ tomcat_db_jndi_name }}"
+        auth="Container"
+        type="javax.sql.DataSource"
+        driverClassName="org.postgresql.Driver"
+        url="jdbc:postgresql://{{ tomcat_db_host }}:{{ tomcat_db_port }}/{{ postgresql_db_name }}"
+        username="{{ postgresql_db_user }}"
+        password="{{ postgresql_db_password | replace('&', '&amp;') | replace('"', '&quot;') | replace('<', '&lt;') | replace('>', '&gt;') }}"
+        maxTotal="{{ tomcat_db_max_total }}"
+        maxIdle="{{ tomcat_db_max_idle }}"
+        maxWaitMillis="{{ tomcat_db_max_wait_millis }}"
+    />
+</Context>
