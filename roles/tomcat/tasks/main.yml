@@ -1,0 +1,22 @@
+---
+- name: Zainstaluj Tomcat
+  ansible.builtin.apt:
+    name: "{{ tomcat_package }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Uruchom i włącz Tomcat
+  ansible.builtin.service:
+    name: "{{ tomcat_service }}"
+    state: started
+    enabled: true
+
+- name: Wdróż aplikację hello-tomcat
+  ansible.builtin.copy:
+    src: "{{ tomcat_war_source }}"
+    dest: "{{ tomcat_webapps_dir }}/{{ tomcat_app_name }}.war"
+    owner: tomcat
+    group: tomcat
+    mode: '0644'
+  notify: Restart Tomcat

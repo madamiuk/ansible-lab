@@ -1,0 +1,6 @@
+---
+java_package_map:
+  Debian: openjdk-21-jdk
+  OracleLinux: java-21-openjdk-devel
+
+java_package: "{{ java_package_map[ansible_facts['distribution']] }}"

@@ -1,0 +1,7 @@
+---
+tomcat_package: tomcat11
+tomcat_service: tomcat11
+
+tomcat_webapps_dir: /var/lib/tomcat11/webapps
+tomcat_app_name: hello-tomcat
+tomcat_war_source: "{{ playbook_dir }}/applications/hello-tomcat/target/hello-tomcat.war"

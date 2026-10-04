@@ -1,0 +1,7 @@
+---
+- name: Instalacja JDK
+  hosts: java
+  become: true
+
+  roles:
+    - java
