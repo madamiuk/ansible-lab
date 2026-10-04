@@ -19,4 +19,20 @@ public class HelloResource {
     public String hello() {
         return greetingService.getGreeting();
     }
+
+    @GET
+    @Path("/data")
+    @Produces(MediaType.TEXT_PLAIN)
+    public String data() {
+        return greetingService.findAllAppData()
+                .stream()
+                .map(appData -> String.format(
+                        "id=%d, hostname=%s, created_at=%s",
+                        appData.getId(),
+                        appData.getHostname(),
+                        appData.getCreatedAt()
+                ))
+                .reduce((first, second) -> first + System.lineSeparator() + second)
+                .orElse("Brak danych");
+    }
 }
