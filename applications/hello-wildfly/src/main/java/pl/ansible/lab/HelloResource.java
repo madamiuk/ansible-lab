@@ -10,6 +10,7 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.QueryParam;
 import java.util.List;
 import pl.ansible.lab.dto.AppDataDto;
+import jakarta.ws.rs.BadRequestException;
 
 @RequestScoped
 @Path("/hello")
@@ -39,7 +40,7 @@ public class HelloResource {
     @Produces(MediaType.APPLICATION_JSON)
     public AppDataDto createData(@QueryParam("hostname") String hostname) {
         if (hostname == null || hostname.isBlank()) {
-            throw new IllegalArgumentException("Brak parametru hostname");
+            throw new BadRequestException("Brak parametru hostname");
         }
 
         return appDataService.create(hostname);
