@@ -8,6 +8,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.QueryParam;
+import java.util.List;
 
 @RequestScoped
 @Path("/hello")
@@ -15,6 +16,9 @@ public class HelloResource {
 
     @EJB
     private GreetingService greetingService;
+
+    @EJB
+    private AppDataService appDataService;
 
     @GET
     @Produces(MediaType.TEXT_PLAIN)
@@ -24,35 +28,20 @@ public class HelloResource {
 
     @GET
     @Path("/data")
-    @Produces(MediaType.TEXT_PLAIN)
-    public String data() {
-        return greetingService.findAllAppData()
-                .stream()
-                .map(appData -> String.format(
-                        "id=%d, hostname=%s, created_at=%s",
-                        appData.getId(),
-                        appData.getHostname(),
-                        appData.getCreatedAt()
-                ))
-                .reduce((first, second) -> first + System.lineSeparator() + second)
-                .orElse("Brak danych");
+    @Produces(MediaType.APPLICATION_JSON)
+    public List<AppData> data() {
+        return appDataService.findAll();
     }
 
     @POST
     @Path("/data")
-    @Produces(MediaType.TEXT_PLAIN)
-    public String createData(@QueryParam("hostname") String hostname) {
+    @Produces(MediaType.APPLICATION_JSON)
+    public AppData createData(@QueryParam("hostname") String hostname) {
         if (hostname == null || hostname.isBlank()) {
-            return "Brak parametru hostname";
+            throw new IllegalArgumentException("Brak parametru hostname");
         }
 
-        AppData appData = greetingService.createAppData(hostname);
-
-        return String.format(
-                "Utworzono: id=%d, hostname=%s, created_at=%s",
-                appData.getId(),
-                appData.getHostname(),
-                appData.getCreatedAt()
-        );
+        return appDataService.create(hostname);
     }
+
 }
