@@ -1,0 +1,29 @@
+[Unit]
+Description=WildFly Application Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ wildfly_user }}
+Group={{ wildfly_group }}
+
+Environment="JAVA_HOME=/usr/lib/jvm/java-21-openjdk-arm64"
+Environment="JBOSS_HOME={{ wildfly_home }}"
+
+WorkingDirectory={{ wildfly_home }}
+
+ExecStart={{ wildfly_home }}/bin/standalone.sh \
+  -c=standalone.xml \
+  -b={{ wildfly_bind_address }} \
+  -bmanagement={{ wildfly_management_bind_address }}
+
+Restart=on-failure
+RestartSec=5
+
+LimitNOFILE=102642
+
+SuccessExitStatus=143
+
+[Install]
+WantedBy=multi-user.target

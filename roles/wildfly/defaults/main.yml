@@ -1,0 +1,21 @@
+---
+wildfly_version: 41.0.1.Final
+
+wildfly_archive: "wildfly-{{ wildfly_version }}.tar.gz"
+wildfly_download_url: "https://github.com/wildfly/wildfly/releases/download/{{ wildfly_version }}/{{ wildfly_archive }}"
+
+wildfly_sha256: "26e27908f5c720d53f24abb95f9575d04f580510e5d85fad513cda9ade8119c3"
+
+wildfly_install_parent: /opt
+wildfly_version_dir: "{{ wildfly_install_parent }}/wildfly-{{ wildfly_version }}"
+wildfly_home: "{{ wildfly_install_parent }}/wildfly"
+
+wildfly_archive_path: "/tmp/{{ wildfly_archive }}"
+
+wildfly_user: wildfly
+wildfly_group: wildfly
+
+wildfly_service: wildfly
+
+wildfly_bind_address: 127.0.0.1
+wildfly_management_bind_address: 127.0.0.1
