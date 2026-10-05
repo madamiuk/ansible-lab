@@ -53,8 +53,11 @@ jobs:
 
       - name: Verify deployed application
         run: |
-          curl --fail --silent --show-error \
-            http://127.0.0.1:8080/hello-wildfly/api/hello/data \
-            > /tmp/hello-wildfly-data.json
-
-          cat /tmp/hello-wildfly-data.json
+          api_scheme=http
+          api_host=127.0.0.1
+          api_port=8080
+          api_path=/hello-wildfly/api/hello/data
+          ansible debian02 \
+            -i inventory.ini \
+            -m ansible.builtin.uri \
+            -a "url=${api_scheme}://${api_host}:${api_port}${api_path} method=GET return_content=true status_code=200"
