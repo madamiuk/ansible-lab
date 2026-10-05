@@ -1,0 +1,60 @@
+name: Deploy WildFly
+
+on:
+  workflow_dispatch:
+    inputs:
+      ci_run_id:
+        description: "GitHub Actions run ID containing the approved WAR artifact"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  deploy:
+    name: Deploy WAR to debian02
+    runs-on: [self-hosted, macOS, ARM64]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Download approved WAR artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: hello-wildfly-war
+          path: applications/hello-wildfly/target
+          run-id: ${{ inputs.ci_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Verify WAR artifact
+        run: |
+          test -f applications/hello-wildfly/target/hello-wildfly.war
+          ls -lh applications/hello-wildfly/target/hello-wildfly.war
+
+      - name: Test Ansible connection
+        env:
+          ANSIBLE_BECOME_PASS: ${{ secrets.ANSIBLE_BECOME_PASS }}
+        run: |
+          ansible debian02 \
+            -i inventory.ini \
+            -m ansible.builtin.ping
+
+      - name: Deploy WildFly
+        env:
+          ANSIBLE_BECOME_PASS: ${{ secrets.ANSIBLE_BECOME_PASS }}
+        run: |
+          ansible-playbook \
+            -i inventory.ini \
+            wildfly_role.yml \
+            --limit debian02
+
+      - name: Verify deployed application
+        run: |
+          curl --fail --silent --show-error \
+            http://127.0.0.1:8080/hello-wildfly/api/hello/data \
+            > /tmp/hello-wildfly-data.json
+
+          cat /tmp/hello-wildfly-data.json
