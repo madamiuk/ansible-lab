@@ -1,0 +1,161 @@
+---
+- name: Integration test - hello-wildfly REST API
+  hosts: wildfly
+  gather_facts: true
+
+  vars:
+    api_base_url: "http://127.0.0.1:8080/hello-wildfly/api/hello"
+    integration_hostname: "integration-{{ ansible_facts.date_time.epoch }}"
+
+  tasks:
+
+    - name: Run REST API integration tests
+      block:
+
+        - name: Create AppData
+          ansible.builtin.uri:
+            url: "{{ api_base_url }}/data?hostname={{ integration_hostname }}"
+            method: POST
+            return_content: true
+            status_code: 200
+          register: create_result
+
+        - name: Verify create response
+          ansible.builtin.assert:
+            that:
+              - create_result.json.hostname == integration_hostname
+              - create_result.json.id is defined
+              - create_result.json.createdAt is defined
+
+        - name: Save created ID
+          ansible.builtin.set_fact:
+            app_data_id: "{{ create_result.json.id }}"
+
+        - name: Get created AppData
+          ansible.builtin.uri:
+            url: "{{ api_base_url }}/data/{{ app_data_id }}"
+            method: GET
+            return_content: true
+            status_code: 200
+          register: get_result
+
+        - name: Verify GET response
+          ansible.builtin.assert:
+            that:
+              - get_result.json.id == app_data_id
+              - get_result.json.hostname == integration_hostname
+              - get_result.json.createdAt is defined
+
+        - name: Update AppData
+          ansible.builtin.uri:
+            url: "{{ api_base_url }}/data/{{ app_data_id }}"
+            method: PUT
+            body:
+              hostname: "{{ integration_hostname }}-updated"
+            body_format: json
+            return_content: true
+            status_code: 200
+          register: update_result
+
+        - name: Verify PUT response
+          ansible.builtin.assert:
+            that:
+              - update_result.json.id == app_data_id
+              - update_result.json.hostname == integration_hostname ~ "-updated"
+              - update_result.json.createdAt is defined
+
+        - name: Get updated AppData
+          ansible.builtin.uri:
+            url: "{{ api_base_url }}/data/{{ app_data_id }}"
+            method: GET
+            return_content: true
+            status_code: 200
+          register: get_updated_result
+
+        - name: Verify createdAt did not change
+          ansible.builtin.assert:
+            that:
+              - get_updated_result.json.createdAt == get_result.json.createdAt
+
+        - name: Verify invalid POST returns 400
+          ansible.builtin.uri:
+            url: "{{ api_base_url }}/data?hostname="
+            method: POST
+            return_content: true
+            status_code: 400
+          register: invalid_post_result
+
+        - name: Verify invalid POST response
+          ansible.builtin.assert:
+            that:
+              - invalid_post_result.json.error == "Bad Request"
+              - invalid_post_result.json.message is defined
+
+        - name: Verify invalid PUT returns 400
+          ansible.builtin.uri:
+            url: "{{ api_base_url }}/data/{{ app_data_id }}"
+            method: PUT
+            body:
+              hostname: "bad_host"
+            body_format: json
+            return_content: true
+            status_code: 400
+          register: invalid_put_result
+
+        - name: Verify invalid PUT response
+          ansible.builtin.assert:
+            that:
+              - invalid_put_result.json.error == "Bad Request"
+              - invalid_put_result.json.message == "hostname zawiera niedozwolone znaki"
+
+        - name: Verify missing AppData returns 404
+          ansible.builtin.uri:
+            url: "{{ api_base_url }}/data/999999999"
+            method: GET
+            return_content: true
+            status_code: 404
+          register: missing_result
+
+        - name: Verify 404 response
+          ansible.builtin.assert:
+            that:
+              - missing_result.json.error == "Not Found"
+
+        - name: Delete AppData
+          ansible.builtin.uri:
+            url: "{{ api_base_url }}/data/{{ app_data_id }}"
+            method: DELETE
+            return_content: true
+            status_code: 204
+          register: delete_result
+
+        - name: Verify DELETE response
+          ansible.builtin.assert:
+            that:
+              - delete_result.status == 204
+              - delete_result.content == ""
+
+        - name: Verify deleted AppData returns 404
+          ansible.builtin.uri:
+            url: "{{ api_base_url }}/data/{{ app_data_id }}"
+            method: GET
+            return_content: true
+            status_code: 404
+          register: deleted_result
+
+        - name: Verify deleted record is gone
+          ansible.builtin.assert:
+            that:
+              - deleted_result.json.error == "Not Found"
+
+      always:
+
+        - name: Cleanup test AppData
+          ansible.builtin.uri:
+            url: "{{ api_base_url }}/data/{{ app_data_id }}"
+            method: DELETE
+            return_content: true
+            status_code:
+              - 204
+              - 404
+          when: app_data_id is defined
