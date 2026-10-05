@@ -46,6 +46,10 @@ private Long id;
         return hostname;
     }
 
+    public void changeHostname(String hostname) {
+        this.hostname = hostname;
+    }
+
     public OffsetDateTime getCreatedAt() {
         return createdAt;
     }

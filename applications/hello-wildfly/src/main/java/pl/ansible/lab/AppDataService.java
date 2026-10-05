@@ -43,6 +43,18 @@ public class AppDataService {
         return toDto(appData);
     }
 
+    public AppDataDto update(Long id, String hostname) {
+        AppData appData = entityManager.find(AppData.class, id);
+
+        if (appData == null) {
+            return null;
+        }
+
+        appData.changeHostname(hostname);
+
+        return toDto(appData);
+    }
+
     public boolean delete(Long id) {
         AppData appData = entityManager.find(AppData.class, id);
 

@@ -17,6 +17,10 @@ import jakarta.validation.constraints.Size;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.PUT;
+import pl.ansible.lab.dto.AppDataCreateDto;
+import jakarta.validation.Valid;
 
 @RequestScoped
 @Path("/hello")
@@ -70,6 +74,22 @@ public class HelloResource {
         return appData;
     }
 
+    @PUT
+    @Path("/data/{id}")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public AppDataDto updateData(
+            @PathParam("id") Long id,
+            @Valid AppDataCreateDto request) {
+
+        AppDataDto appData = appDataService.update(id, request.getHostname());
+
+        if (appData == null) {
+            throw new NotFoundException("Nie znaleziono AppData o id=" + id);
+        }
+
+        return appData;
+    }
     @DELETE
     @Path("/data/{id}")
     public void deleteData(@PathParam("id") Long id) {
