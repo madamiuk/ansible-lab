@@ -26,3 +26,11 @@ jobs:
 
       - name: Run tests and build
         run: mvn -B -f applications/hello-wildfly/pom.xml clean verify
+
+      - name: Upload WAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hello-wildfly-war
+          path: applications/hello-wildfly/target/hello-wildfly.war
+          if-no-files-found: error
+          retention-days: 7
