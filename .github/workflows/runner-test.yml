@@ -1,0 +1,22 @@
+name: Self-hosted Runner Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  connectivity:
+    name: Test Mac runner and Ansible
+    runs-on: [self-hosted, macOS, ARM64]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Show Ansible version
+        run: ansible --version
+
+      - name: Test Ansible connection to debian02
+        run: ansible debian02 -i inventory.ini -m ansible.builtin.ping
