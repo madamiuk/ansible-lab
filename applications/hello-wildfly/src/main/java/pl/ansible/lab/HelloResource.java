@@ -57,6 +57,19 @@ public class HelloResource {
     return appDataService.create(hostname);
     }
 
+    @GET
+    @Path("/data/{id}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public AppDataDto getData(@PathParam("id") Long id) {
+        AppDataDto appData = appDataService.findById(id);
+
+        if (appData == null) {
+            throw new NotFoundException("Nie znaleziono AppData o id=" + id);
+        }
+
+        return appData;
+    }
+
     @DELETE
     @Path("/data/{id}")
     public void deleteData(@PathParam("id") Long id) {
