@@ -33,6 +33,17 @@ public class AppDataService {
         return toDto(appData);
     }
 
+    public boolean delete(Long id) {
+        AppData appData = entityManager.find(AppData.class, id);
+
+        if (appData == null) {
+            return false;
+        }
+
+        entityManager.remove(appData);
+        return true;
+    }
+
     private AppDataDto toDto(AppData appData) {
         return new AppDataDto(
                 appData.getId(),

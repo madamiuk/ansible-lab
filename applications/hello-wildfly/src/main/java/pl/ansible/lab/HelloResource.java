@@ -14,6 +14,9 @@ import jakarta.ws.rs.BadRequestException;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import jakarta.ws.rs.DELETE;
+import jakarta.ws.rs.NotFoundException;
+import jakarta.ws.rs.PathParam;
 
 @RequestScoped
 @Path("/hello")
@@ -53,4 +56,13 @@ public class HelloResource {
 
     return appDataService.create(hostname);
     }
+
+    @DELETE
+    @Path("/data/{id}")
+    public void deleteData(@PathParam("id") Long id) {
+        if (!appDataService.delete(id)) {
+            throw new NotFoundException("Nie znaleziono AppData o id=" + id);
+        }
+    }
+
 }
