@@ -24,6 +24,7 @@ permissions:
 jobs:
   deploy:
     name: Deploy WAR to debian02
+    environment: dev
 
     if: >
       github.event_name == 'workflow_dispatch' ||
@@ -40,6 +41,9 @@ jobs:
         run: |
           echo "/Users/ma/ansible/venv/bin" >> "$GITHUB_PATH"
           echo "ANSIBLE_CONFIG=/Users/ma/ansible/ansible.cfg" >> "$GITHUB_ENV"
+
+      - name: Show deployment environment
+        run: echo "Deploy environment=${{ vars.DEPLOY_ENV }}"
 
       - name: Download approved WAR artifact
         uses: actions/download-artifact@v7
