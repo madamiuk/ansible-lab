@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   deploy:
-    name: Deploy WAR to debian02
+    name: Deploy WAR to rhel01
     environment: dev
 
     if: >
@@ -62,7 +62,7 @@ jobs:
         env:
           ANSIBLE_BECOME_PASS: ${{ secrets.ANSIBLE_BECOME_PASS }}
         run: |
-          ansible debian02 \
+          ansible rhel01 \
             -i inventory.ini \
             -m ansible.builtin.ping
 
@@ -73,7 +73,7 @@ jobs:
           ansible-playbook \
             -i inventory.ini \
             wildfly_role.yml \
-            --limit debian02
+            --limit rhel01
 
       - name: Verify deployed application
         run: |
@@ -81,7 +81,7 @@ jobs:
           api_host=127.0.0.1
           api_port=8080
           api_path=/hello-wildfly/api/hello/data
-          ansible debian02 \
+          ansible rhel01 \
             -i inventory.ini \
             -m ansible.builtin.uri \
             -a "url=${api_scheme}://${api_host}:${api_port}${api_path} method=GET return_content=true status_code=200"
