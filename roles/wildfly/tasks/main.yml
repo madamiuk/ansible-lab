@@ -177,3 +177,22 @@
   register: wildfly_datasource_add
   changed_when: true
   no_log: true
+
+- name: Testuj połączenie datasource PostgreSQL
+  ansible.builtin.command:
+    argv:
+      - /opt/wildfly/bin/jboss-cli.sh
+      - --connect
+      - --command=/subsystem=datasources/data-source=AnsibleLabDS:test-connection-in-pool
+  become: true
+  become_user: wildfly
+  register: datasource_test
+  changed_when: false
+
+- name: Zweryfikuj działanie datasource PostgreSQL
+  ansible.builtin.assert:
+    that:
+      - '"\"outcome\" => \"success\"" in datasource_test.stdout'
+      - '"\"result\" => [true]" in datasource_test.stdout'
+    fail_msg: "Datasource AnsibleLabDS nie może połączyć się z PostgreSQL"
+    success_msg: "Datasource AnsibleLabDS działa poprawnie"
