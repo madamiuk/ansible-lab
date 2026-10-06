@@ -15,6 +15,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      - name: Configure Ansible environment
+        run: |
+          echo "/Users/ma/ansible/venv/bin" >> "$GITHUB_PATH"
+          echo "ANSIBLE_CONFIG=/Users/ma/ansible/ansible.cfg" >> "$GITHUB_ENV"
+
       - name: Show Ansible version
         run: ansible --version
 
