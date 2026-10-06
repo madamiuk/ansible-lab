@@ -16,6 +16,11 @@ wildfly_user: wildfly
 wildfly_group: wildfly
 
 wildfly_service: wildfly
+wildfly_java_home_map:
+  Debian: /usr/lib/jvm/java-21-openjdk-arm64
+  RedHat: /usr/lib/jvm/java-21-openjdk
+
+wildfly_java_home: "{{ wildfly_java_home_map[ansible_facts['os_family']] }}"
 
 wildfly_bind_address: 127.0.0.1
 wildfly_management_bind_address: 127.0.0.1
@@ -24,7 +29,12 @@ wildfly_deployments_dir: "{{ wildfly_home }}/standalone/deployments"
 wildfly_app_name: hello-wildfly
 wildfly_war_source: "{{ playbook_dir }}/applications/hello-wildfly/target/hello-wildfly.war"
 
-wildfly_postgresql_jdbc_package: libpostgresql-jdbc-java
+wildfly_postgresql_jdbc_package_map:
+  Debian: libpostgresql-jdbc-java
+  RedHat: postgresql-jdbc
+
+wildfly_postgresql_jdbc_package: "{{ wildfly_postgresql_jdbc_package_map[ansible_facts['os_family']] }}"
+
 wildfly_postgresql_jdbc_jar: /usr/share/java/postgresql.jar
 
 wildfly_postgresql_module_name: org.postgresql.jdbc
