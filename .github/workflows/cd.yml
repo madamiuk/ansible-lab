@@ -1,6 +1,15 @@
 name: Deploy WildFly
 
 on:
+
+  workflow_run:
+      workflows:
+        - Java CI
+      types:
+        - completed
+      branches:
+        - main
+
   workflow_dispatch:
     inputs:
       ci_run_id:
@@ -15,11 +24,17 @@ permissions:
 jobs:
   deploy:
     name: Deploy WAR to debian02
+
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     runs-on: [self-hosted, macOS, ARM64]
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Configure Ansible environment
         run: |
@@ -31,7 +46,7 @@ jobs:
         with:
           name: hello-wildfly-war
           path: applications/hello-wildfly/target
-          run-id: ${{ inputs.ci_run_id }}
+          run-id: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || inputs.ci_run_id }}
           github-token: ${{ github.token }}
 
       - name: Verify WAR artifact
