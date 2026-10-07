@@ -109,6 +109,9 @@
   when: not ansible_check_mode
   notify: Restart WildFly
 
+- name: Zastosuj zmiany wymagające restartu WildFly
+  ansible.builtin.meta: flush_handlers
+
 - name: Sprawdź rejestrację drivera PostgreSQL w WildFly
   ansible.builtin.command:
     argv:
@@ -223,6 +226,12 @@
     - wildfly_datasource_connection_check.rc != 0
   changed_when: true
   no_log: true
+  tags:
+    - datasource
+  notify: Reload WildFly
+
+- name: Zastosuj zmiany konfiguracji datasource
+  ansible.builtin.meta: flush_handlers
   tags:
     - datasource
 

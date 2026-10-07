@@ -7,3 +7,15 @@
   ansible.builtin.systemd:
     name: "{{ wildfly_service }}"
     state: restarted
+
+- name: Reload WildFly
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - "{{ wildfly_user }}"
+      - --
+      - "{{ wildfly_home }}/bin/jboss-cli.sh"
+      - --connect
+      - --command=:reload
+  changed_when: true
