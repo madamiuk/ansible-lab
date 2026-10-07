@@ -73,6 +73,8 @@
     owner: "{{ wildfly_user }}"
     group: "{{ wildfly_group }}"
     mode: '0644'
+  tags:
+    - deploy
 
 - name: Zainstaluj sterownik JDBC PostgreSQL
   ansible.builtin.package:
@@ -120,6 +122,8 @@
   register: wildfly_postgresql_driver_check
   changed_when: false
   failed_when: wildfly_postgresql_driver_check.rc not in [0, 1]
+  tags:
+    - verify
 
 - name: Zarejestruj driver PostgreSQL w WildFly
   ansible.builtin.command:
@@ -150,6 +154,8 @@
   register: wildfly_datasource_check
   changed_when: false
   failed_when: wildfly_datasource_check.rc not in [0, 1]
+  tags:
+    - datasource
 
 - name: Utwórz datasource PostgreSQL w WildFly
   ansible.builtin.command:
@@ -177,6 +183,66 @@
   register: wildfly_datasource_add
   changed_when: true
   no_log: true
+  tags:
+    - datasource
+
+- name: Sprawdź połączenie istniejącego datasource
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - "{{ wildfly_user }}"
+      - --
+      - "{{ wildfly_home }}/bin/jboss-cli.sh"
+      - --connect
+      - "--command=/subsystem=datasources/data-source={{ wildfly_datasource_name }}:test-connection-in-pool"
+  register: wildfly_datasource_connection_check
+  changed_when: false
+  failed_when: false
+  when:
+    - not ansible_check_mode
+    - wildfly_datasource_check.rc == 0
+  tags:
+    - datasource
+
+- name: Zaktualizuj hasło datasource PostgreSQL
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - "{{ wildfly_user }}"
+      - --
+      - "{{ wildfly_home }}/bin/jboss-cli.sh"
+      - --connect
+      - >-
+        --command=/subsystem=datasources/data-source={{ wildfly_datasource_name }}:
+        write-attribute(name=password,value="{{ postgresql_db_password }}")
+  when:
+    - not ansible_check_mode
+    - wildfly_datasource_check.rc == 0
+    - wildfly_datasource_connection_check.rc != 0
+  changed_when: true
+  no_log: true
+  tags:
+    - datasource
+
+- name: Opróżnij pulę połączeń datasource po zmianie hasła
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - "{{ wildfly_user }}"
+      - --
+      - "{{ wildfly_home }}/bin/jboss-cli.sh"
+      - --connect
+      - "--command=/subsystem=datasources/data-source={{ wildfly_datasource_name }}:flush-all-connection-in-pool"
+  when:
+    - not ansible_check_mode
+    - wildfly_datasource_check.rc == 0
+    - wildfly_datasource_connection_check.rc != 0
+  changed_when: true
+  tags:
+    - datasource
 
 - name: Testuj połączenie datasource PostgreSQL
   ansible.builtin.command:
@@ -188,6 +254,9 @@
   become_user: wildfly
   register: datasource_test
   changed_when: false
+  tags:
+    - datasource
+    - verify
 
 - name: Zweryfikuj działanie datasource PostgreSQL
   ansible.builtin.assert:
@@ -196,3 +265,6 @@
       - '"\"result\" => [true]" in datasource_test.stdout'
     fail_msg: "Datasource {{ wildfly_datasource_name }} nie może połączyć się z PostgreSQL"
     success_msg: "Datasource {{ wildfly_datasource_name }} działa poprawnie"
+  tags:
+    - datasource
+    - verify
