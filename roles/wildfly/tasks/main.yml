@@ -253,27 +253,43 @@
   tags:
     - datasource
 
-- name: Testuj połączenie datasource PostgreSQL
-  ansible.builtin.command:
-    argv:
-      - /opt/wildfly/bin/jboss-cli.sh
-      - --connect
-      - --command=/subsystem=datasources/data-source={{ wildfly_datasource_name }}:test-connection-in-pool
-  become: true
-  become_user: wildfly
-  register: datasource_test
-  changed_when: false
-  tags:
-    - datasource
-    - verify
+- name: Zweryfikuj datasource PostgreSQL
+  block:
 
-- name: Zweryfikuj działanie datasource PostgreSQL
-  ansible.builtin.assert:
-    that:
-      - '"\"outcome\" => \"success\"" in datasource_test.stdout'
-      - '"\"result\" => [true]" in datasource_test.stdout'
-    fail_msg: "Datasource {{ wildfly_datasource_name }} nie może połączyć się z PostgreSQL"
-    success_msg: "Datasource {{ wildfly_datasource_name }} działa poprawnie"
+    - name: Testuj połączenie datasource PostgreSQL
+      ansible.builtin.command:
+        argv:
+          - /opt/wildfly/bin/jboss-cli.sh
+          - --connect
+          - --command=/subsystem=datasources/data-source={{ wildfly_datasource_name }}:test-connection-in-pool
+      become: true
+      become_user: wildfly
+      register: datasource_test
+      changed_when: false
+
+    - name: Potwierdź poprawne działanie datasource PostgreSQL
+      ansible.builtin.assert:
+        that:
+          - '"\"outcome\" => \"success\"" in datasource_test.stdout'
+          - '"\"result\" => [true]" in datasource_test.stdout'
+        success_msg: "Datasource {{ wildfly_datasource_name }} działa poprawnie"
+
+  rescue:
+
+    - name: Wyświetl błąd datasource
+      ansible.builtin.debug:
+        msg: "Datasource {{ wildfly_datasource_name }} nie działa poprawnie."
+
+    - name: Zatrzymaj wykonanie playbooka
+      ansible.builtin.fail:
+        msg: "Weryfikacja datasource {{ wildfly_datasource_name }} zakończyła się błędem."
+
+  always:
+
+    - name: Zakończono weryfikację datasource
+      ansible.builtin.debug:
+        msg: "Test datasource {{ wildfly_datasource_name }} został wykonany."
+
   tags:
     - datasource
     - verify
