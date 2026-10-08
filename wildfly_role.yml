@@ -3,5 +3,33 @@
   hosts: wildfly
   become: true
 
+  pre_tasks:
+    - name: Sprawdź dostępność hosta
+      ansible.builtin.ping:
+
+    - name: Sprawdź obsługiwaną rodzinę systemu
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['os_family'] in ['RedHat', 'Debian']
+        fail_msg: "Nieobsługiwana rodzina systemu: {{ ansible_facts['os_family'] }}"
+        success_msg: "System {{ ansible_facts['os_family'] }} jest obsługiwany."
+
   roles:
     - wildfly
+
+  post_tasks:
+    - name: Sprawdź endpoint aplikacji WildFly
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:8080/hello-wildfly/api/hello/data"
+        method: GET
+        return_content: true
+        status_code: 200
+      register: wildfly_app_health
+      changed_when: false
+
+    - name: Potwierdź działanie aplikacji
+      ansible.builtin.assert:
+        that:
+          - wildfly_app_health.status == 200
+        fail_msg: "Aplikacja hello-wildfly nie odpowiada poprawnie."
+        success_msg: "Aplikacja hello-wildfly działa poprawnie."
