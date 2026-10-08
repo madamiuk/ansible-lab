@@ -46,3 +46,28 @@
       when: not ansible_check_mode
       tags:
         - health
+
+    - name: Podsumuj zakończenie wdrożenia
+      ansible.builtin.debug:
+        msg: "Wdrożenie WildFly zakończone dla grupy wildfly."
+#      run_once: true
+      when: inventory_hostname == ansible_play_hosts_all[0]  
+      tags:
+        - health
+
+    - name: Sprawdź nazwę kontrolera Ansible
+      ansible.builtin.command:
+        argv:
+          - hostname
+      delegate_to: localhost
+      become: false
+      register: controller_hostname
+      changed_when: false
+      tags:
+        - health
+
+    - name: Wyświetl nazwę kontrolera
+      ansible.builtin.debug:
+        msg: "Task wykonano na kontrolerze: {{ controller_hostname.stdout }}"
+      tags:
+        - health
