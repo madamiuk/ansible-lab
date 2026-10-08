@@ -1,6 +1,7 @@
 ---
 - name: Instalacja WildFly
   hosts: wildfly
+  serial: 1
   become: true
 
   pre_tasks:

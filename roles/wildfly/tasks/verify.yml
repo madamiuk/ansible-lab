@@ -5,11 +5,13 @@
     - name: Testuj połączenie datasource PostgreSQL
       ansible.builtin.command:
         argv:
-          - /opt/wildfly/bin/jboss-cli.sh
+          - runuser
+          - -u
+          - "{{ wildfly_user }}"
+          - --
+          - "{{ wildfly_home }}/bin/jboss-cli.sh"
           - --connect
-          - --command=/subsystem=datasources/data-source={{ wildfly_datasource_name }}:test-connection-in-pool
-      become: true
-      become_user: wildfly
+          - "--command=/subsystem=datasources/data-source={{ wildfly_datasource_name }}:test-connection-in-pool"
       register: datasource_test
       changed_when: false
 
