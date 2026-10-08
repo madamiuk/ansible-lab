@@ -6,6 +6,8 @@
   pre_tasks:
     - name: Sprawdź dostępność hosta
       ansible.builtin.ping:
+      tags:
+        - always
 
     - name: Sprawdź obsługiwaną rodzinę systemu
       ansible.builtin.assert:
@@ -13,6 +15,8 @@
           - ansible_facts['os_family'] in ['RedHat', 'Debian']
         fail_msg: "Nieobsługiwana rodzina systemu: {{ ansible_facts['os_family'] }}"
         success_msg: "System {{ ansible_facts['os_family'] }} jest obsługiwany."
+      tags:
+        - always
 
   roles:
     - wildfly
@@ -26,6 +30,9 @@
         status_code: 200
       register: wildfly_app_health
       changed_when: false
+      when: not ansible_check_mode
+      tags:
+        - health
 
     - name: Potwierdź działanie aplikacji
       ansible.builtin.assert:
@@ -33,3 +40,6 @@
           - wildfly_app_health.status == 200
         fail_msg: "Aplikacja hello-wildfly nie odpowiada poprawnie."
         success_msg: "Aplikacja hello-wildfly działa poprawnie."
+      when: not ansible_check_mode
+      tags:
+        - health
