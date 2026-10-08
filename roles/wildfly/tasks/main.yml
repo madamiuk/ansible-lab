@@ -1,4 +1,9 @@
 ---
+- name: Walidacja wymaganych zmiennych
+  ansible.builtin.import_tasks: validate.yml
+  tags:
+    - always
+
 - name: Instalacja WildFly
   ansible.builtin.import_tasks: install.yml
   tags:

@@ -1,0 +1,16 @@
+---
+- name: Sprawdź wymagane zmienne roli WildFly
+  ansible.builtin.assert:
+    that:
+      - wildfly_home is defined
+      - wildfly_user is defined
+      - wildfly_group is defined
+      - wildfly_service is defined
+      - wildfly_datasource_name is defined
+      - wildfly_datasource_jndi_name is defined
+      - wildfly_datasource_host is defined
+      - postgresql_db_name is defined
+      - postgresql_db_user is defined
+      - postgresql_db_password is defined
+    fail_msg: "Brakuje jednej lub więcej wymaganych zmiennych dla roli WildFly."
+    success_msg: "Wszystkie wymagane zmienne roli WildFly są zdefiniowane."
