@@ -1,7 +1,7 @@
 ---
 - name: Instalacja WildFly
   hosts: wildfly
-  serial: 1
+  serial: 2
   any_errors_fatal: true
 #  max_fail_percentage: 49
   become: true
@@ -71,3 +71,34 @@
         msg: "Task wykonano na kontrolerze: {{ controller_hostname.stdout }}"
       tags:
         - health
+        
+    - name: Zapisz rodzinę systemu hosta
+      ansible.builtin.set_fact:
+        host_os_family: "{{ ansible_facts['os_family'] }}"
+      tags:
+      - facts
+
+    - name: Pokaż fakty wszystkich hostów WildFly
+      ansible.builtin.debug:
+        msg: >
+          debian02={{ hostvars['debian02']['host_os_family'] }},
+          rhel01={{ hostvars['rhel01']['host_os_family'] }}
+      when: inventory_hostname == ansible_play_hosts_all[0]
+      tags:
+        - facts
+
+    - name: Ustaw fakt dla rhel01 z poziomu debian02
+      ansible.builtin.set_fact:
+        delegated_note: "Fakt ustawiony przez debian02"
+      delegate_to: rhel01
+      delegate_facts: true
+      when: inventory_hostname == 'debian02'
+      tags:
+        - facts
+
+    - name: Odczytaj delegowany fakt rhel01
+      ansible.builtin.debug:
+        msg: "rhel01 delegated_note={{ hostvars['rhel01']['delegated_note'] }}"
+      when: inventory_hostname == 'debian02'
+      tags:
+        - facts
