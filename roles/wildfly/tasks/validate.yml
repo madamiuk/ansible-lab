@@ -3,14 +3,24 @@
   ansible.builtin.assert:
     that:
       - wildfly_home is defined
+      - wildfly_home | length > 0
       - wildfly_user is defined
+      - wildfly_user | length > 0
       - wildfly_group is defined
+      - wildfly_group | length > 0
       - wildfly_service is defined
+      - wildfly_service | length > 0
       - wildfly_datasource_name is defined
+      - wildfly_datasource_name | length > 0
       - wildfly_datasource_jndi_name is defined
+      - wildfly_datasource_jndi_name | length > 0
       - wildfly_datasource_host is defined
+      - wildfly_datasource_host | length > 0
       - postgresql_db_name is defined
+      - postgresql_db_name | length > 0
       - postgresql_db_user is defined
+      - postgresql_db_user | length > 0
       - postgresql_db_password is defined
-    fail_msg: "Brakuje jednej lub więcej wymaganych zmiennych dla roli WildFly."
-    success_msg: "Wszystkie wymagane zmienne roli WildFly są zdefiniowane."
+      - postgresql_db_password | length > 0
+    fail_msg: "Brakuje wymaganej zmiennej lub jedna z wymaganych wartości jest pusta."
+    success_msg: "Wszystkie wymagane zmienne roli WildFly są poprawnie zdefiniowane."
