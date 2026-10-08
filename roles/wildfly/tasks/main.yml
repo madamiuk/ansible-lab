@@ -1,18 +1,30 @@
 ---
 - name: Instalacja WildFly
   ansible.builtin.import_tasks: install.yml
+  tags:
+    - install
 
 - name: Konfiguracja usługi WildFly
   ansible.builtin.import_tasks: service.yml
+  tags:
+    - service
 
 - name: Zadania deploymentu aplikacji
   ansible.builtin.import_tasks: deploy.yml
+  tags:
+    - deploy
 
 - name: Zadania JDBC PostgreSQL
   ansible.builtin.import_tasks: jdbc.yml
+  tags:
+    - jdbc
 
 - name: Zadania datasource PostgreSQL
   ansible.builtin.import_tasks: datasource.yml
+  tags:
+    - datasource
 
 - name: Weryfikacja datasource PostgreSQL
   ansible.builtin.import_tasks: verify.yml
+  tags:
+    - verify
