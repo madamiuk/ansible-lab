@@ -2,6 +2,8 @@
 - name: Instalacja WildFly
   hosts: wildfly
   serial: 1
+  any_errors_fatal: true
+#  max_fail_percentage: 49
   become: true
 
   pre_tasks:
