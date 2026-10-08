@@ -1,0 +1,36 @@
+---
+- name: Laboratorium set_fact hostvars i delegate_facts
+  hosts: wildfly
+  gather_facts: true
+  serial: 2
+
+  tasks:
+    - name: Zapisz rodzinę systemu hosta
+      ansible.builtin.set_fact:
+        host_os_family: "{{ ansible_facts['os_family'] }}"
+
+    - name: Pokaż rodzinę systemu każdego hosta
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }}={{ host_os_family }}"
+
+    - name: Pokaż fakty wszystkich aktywnych hostów
+      ansible.builtin.debug:
+        msg: "{{ item }}={{ hostvars[item]['host_os_family'] }}"
+      loop: "{{ ansible_play_hosts_all }}"
+      run_once: true
+
+    - name: Ustaw fakt dla rhel01 z poziomu debian02
+      ansible.builtin.set_fact:
+        delegated_note: "Fakt ustawiony przez debian02"
+      delegate_to: rhel01
+      delegate_facts: true
+      when:
+        - inventory_hostname == 'debian02'
+        - "'rhel01' in ansible_play_hosts_all"
+
+    - name: Odczytaj delegowany fakt rhel01
+      ansible.builtin.debug:
+        msg: "rhel01 delegated_note={{ hostvars['rhel01']['delegated_note'] }}"
+      when:
+        - inventory_hostname == 'debian02'
+        - "'rhel01' in ansible_play_hosts_all"
