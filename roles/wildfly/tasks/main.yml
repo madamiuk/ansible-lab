@@ -73,6 +73,7 @@
     owner: "{{ wildfly_user }}"
     group: "{{ wildfly_group }}"
     mode: '0644'
+  when: not ansible_check_mode
   tags:
     - deploy
 
@@ -254,8 +255,8 @@
     - datasource
 
 - name: Zweryfikuj datasource PostgreSQL
+  when: not ansible_check_mode
   block:
-
     - name: Testuj połączenie datasource PostgreSQL
       ansible.builtin.command:
         argv:
@@ -275,7 +276,6 @@
         success_msg: "Datasource {{ wildfly_datasource_name }} działa poprawnie"
 
   rescue:
-
     - name: Wyświetl błąd datasource
       ansible.builtin.debug:
         msg: "Datasource {{ wildfly_datasource_name }} nie działa poprawnie."
@@ -285,7 +285,6 @@
         msg: "Weryfikacja datasource {{ wildfly_datasource_name }} zakończyła się błędem."
 
   always:
-
     - name: Zakończono weryfikację datasource
       ansible.builtin.debug:
         msg: "Test datasource {{ wildfly_datasource_name }} został wykonany."
