@@ -1,0 +1,20 @@
+---
+- name: Utwórz jednostkę systemd dla WildFly
+  ansible.builtin.template:
+    src: wildfly.service.j2
+    dest: "/etc/systemd/system/{{ wildfly_service }}.service"
+    owner: root
+    group: root
+    mode: '0644'
+  notify:
+    - Reload systemd
+    - Restart WildFly
+  when: not ansible_check_mode
+
+- name: Włącz i uruchom WildFly
+  ansible.builtin.systemd:
+    name: "{{ wildfly_service }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: not ansible_check_mode

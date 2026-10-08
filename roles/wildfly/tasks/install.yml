@@ -1,0 +1,47 @@
+---
+- name: Utwórz grupę WildFly
+  ansible.builtin.group:
+    name: "{{ wildfly_group }}"
+    state: present
+
+- name: Utwórz użytkownika WildFly
+  ansible.builtin.user:
+    name: "{{ wildfly_user }}"
+    group: "{{ wildfly_group }}"
+    shell: /usr/sbin/nologin
+    home: "{{ wildfly_home }}"
+    create_home: false
+    system: true
+    state: present
+
+- name: Pobierz archiwum WildFly
+  ansible.builtin.get_url:
+    url: "{{ wildfly_download_url }}"
+    dest: "{{ wildfly_archive_path }}"
+    checksum: "sha256:{{ wildfly_sha256 }}"
+    mode: '0644'
+
+- name: Rozpakuj WildFly
+  ansible.builtin.unarchive:
+    src: "{{ wildfly_archive_path }}"
+    dest: "{{ wildfly_install_parent }}"
+    remote_src: true
+    creates: "{{ wildfly_version_dir }}/bin/standalone.sh"
+  when: not ansible_check_mode
+
+- name: Ustaw właściciela instalacji WildFly
+  ansible.builtin.file:
+    path: "{{ wildfly_version_dir }}"
+    owner: "{{ wildfly_user }}"
+    group: "{{ wildfly_group }}"
+    recurse: true
+  when: not ansible_check_mode
+
+- name: Utwórz dowiązanie do aktualnej wersji WildFly
+  ansible.builtin.file:
+    src: "{{ wildfly_version_dir }}"
+    dest: "{{ wildfly_home }}"
+    state: link
+    owner: "{{ wildfly_user }}"
+    group: "{{ wildfly_group }}"
+  when: not ansible_check_mode

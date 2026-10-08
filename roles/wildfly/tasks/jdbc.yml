@@ -1,0 +1,68 @@
+---
+- name: Zainstaluj sterownik JDBC PostgreSQL
+  ansible.builtin.package:
+    name: "{{ wildfly_postgresql_jdbc_package }}"
+    state: present
+
+- name: Utwórz katalog modułu PostgreSQL
+  ansible.builtin.file:
+    path: "{{ wildfly_postgresql_module_dir }}"
+    state: directory
+    owner: "{{ wildfly_user }}"
+    group: "{{ wildfly_group }}"
+    mode: '0755'
+  when: not ansible_check_mode
+
+- name: Udostępnij sterownik PostgreSQL jako moduł WildFly
+  ansible.builtin.file:
+    src: "{{ wildfly_postgresql_jdbc_jar }}"
+    dest: "{{ wildfly_postgresql_module_dir }}/postgresql.jar"
+    state: link
+    owner: "{{ wildfly_user }}"
+    group: "{{ wildfly_group }}"
+  when: not ansible_check_mode
+
+- name: Skonfiguruj moduł PostgreSQL
+  ansible.builtin.template:
+    src: postgresql-module.xml.j2
+    dest: "{{ wildfly_postgresql_module_dir }}/module.xml"
+    owner: "{{ wildfly_user }}"
+    group: "{{ wildfly_group }}"
+    mode: '0644'
+  when: not ansible_check_mode
+  notify: Restart WildFly
+
+- name: Zastosuj zmiany wymagające restartu WildFly
+  ansible.builtin.meta: flush_handlers
+
+- name: Sprawdź rejestrację drivera PostgreSQL w WildFly
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - "{{ wildfly_user }}"
+      - --
+      - "{{ wildfly_home }}/bin/jboss-cli.sh"
+      - --connect
+      - "--command=/subsystem=datasources/jdbc-driver={{ wildfly_postgresql_driver_name }}:read-resource"
+  register: wildfly_postgresql_driver_check
+  changed_when: false
+  failed_when: wildfly_postgresql_driver_check.rc not in [0, 1]
+  tags:
+    - verify
+
+- name: Zarejestruj driver PostgreSQL w WildFly
+  ansible.builtin.command:
+    argv: 
+      - runuser
+      - -u 
+      - "{{ wildfly_user }}" 
+      - --
+      - "{{ wildfly_home }}/bin/jboss-cli.sh"
+      - --connect
+      - "--command=/subsystem=datasources/jdbc-driver={{ wildfly_postgresql_driver_name }}:add(driver-name={{ wildfly_postgresql_driver_name }},driver-module-name={{ wildfly_postgresql_driver_module }},driver-class-name={{ wildfly_postgresql_driver_class }},driver-xa-datasource-class-name={{ wildfly_postgresql_driver_xa_class }},jdbc-compliant=true)"
+  when:
+    - not ansible_check_mode
+    - wildfly_postgresql_driver_check.rc == 1
+  register: wildfly_postgresql_driver_add
+  changed_when: true
