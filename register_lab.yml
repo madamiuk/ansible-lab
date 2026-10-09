@@ -1,0 +1,85 @@
+---
+- name: Laboratorium register set_fact when
+  hosts: wildfly
+  gather_facts: false
+
+  tasks:
+    - name: Sprawdź status usługi WildFly
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - wildfly
+      register: wildfly_status
+      changed_when: false
+      failed_when: false
+
+    - name: Oznacz task jako changed gdy WildFly nie jest active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - wildfly
+      register: wildfly_changed_test
+      changed_when: wildfly_changed_test.stdout != "active"
+      failed_when: false
+
+    - name: Wymuś błąd gdy WildFly nie jest active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - wildfly
+      register: wildfly_failed_test
+      changed_when: false
+      failed_when: wildfly_failed_test.stdout != "active"
+
+    - name: Pokaż pełny wynik register
+      ansible.builtin.debug:
+        var: wildfly_status
+
+    - name: Ustaw fakt czy WildFly działa
+      ansible.builtin.set_fact:
+        wildfly_running: "{{ (wildfly_status.stdout | default('')) == 'active' }}"
+
+    - name: Pokaż uproszczony stan usługi
+      ansible.builtin.debug:
+        msg: "WildFly działa: {{ wildfly_running }}"
+
+    - name: Sprawdź endpoint tylko gdy WildFly działa
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:8080/hello-wildfly/api/hello/data"
+        status_code: 200
+      when: wildfly_running
+      changed_when: false
+
+    - name: Sprawdź wynik po kodzie powrotu
+      ansible.builtin.debug:
+        msg: "systemctl zakończył się poprawnie"
+      when: wildfly_status.rc == 0
+
+    - name: Sprawdź wynik po stdout
+      ansible.builtin.debug:
+        msg: "WildFly ma stan ACTIVE"
+      when: wildfly_status.stdout == "active"
+
+    - name: Test changed_when na nieistniejącej usłudze
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - wildfly-does-not-exist
+      register: missing_service_changed
+      changed_when: missing_service_changed.stdout != "active"
+      failed_when: false
+
+    - name: Test failed_when na nieistniejącej usłudze
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - wildfly-does-not-exist
+      register: missing_service_failed
+      changed_when: false
+      failed_when: missing_service_failed.stdout != "active"
+      ignore_errors: true
