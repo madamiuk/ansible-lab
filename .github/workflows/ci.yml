@@ -4,9 +4,20 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "applications/hello-wildfly/**"
+      - "roles/wildfly/**"
+      - "group_vars/wildfly.yml"
+      - "wildfly_role.yml"
+
   pull_request:
     branches:
       - main
+    paths:
+      - "applications/hello-wildfly/**"
+      - "roles/wildfly/**"
+      - "group_vars/wildfly.yml"
+      - "wildfly_role.yml"
 
 jobs:
   test:
