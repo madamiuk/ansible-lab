@@ -1,0 +1,52 @@
+---
+- name: Laboratorium loop
+  hosts: wildfly
+  gather_facts: false
+
+  vars:
+    test_services:
+      - name: wildfly
+        critical: true
+      - name: sshd
+        critical: true
+      - name: cron
+        critical: false
+
+  tasks:
+    - name: Sprawdź kilka usług
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - "{{ item.name }}"
+      loop: "{{ test_services }}"
+      register: service_checks
+      changed_when: false
+      failed_when: false
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Pokaż wynik każdej usługi
+      ansible.builtin.debug:
+        msg: "{{ item.item }} -> rc={{ item.rc }} stdout={{ item.stdout }}"
+      loop: "{{ service_checks.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Pokaż tylko usługi które nie są active
+      ansible.builtin.debug:
+        msg: "{{ item.item.name }} na {{ inventory_hostname }} nie działa poprawnie"
+      loop: "{{ service_checks.results }}"
+      when: item.stdout != "active"
+      loop_control:
+        label: "{{ item.item.name }}"
+
+    - name: Pokaż niedziałające usługi krytyczne
+      ansible.builtin.debug:
+        msg: "KRYTYCZNA: {{item.item.name }} na {{ inventory_hostname }} nie działa"
+      loop: "{{ service_checks.results }}"
+      when:
+        - item.stdout != "active"
+        - item.item.critical
+      loop_control:
+        label: "{{ item.item.name }}"
