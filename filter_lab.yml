@@ -1,0 +1,93 @@
+---
+- name: Laboratorium filtrowania list
+  hosts: wildfly
+  gather_facts: false
+
+  vars:
+    monitored_services:
+      - name: wildfly
+        port: 8080
+        enabled: true
+        critical: true
+
+      - name: sshd
+        port: 22
+        enabled: true
+        critical: true
+
+      - name: wildfly_management
+        port: 9990
+        enabled: true
+        critical: false
+
+      - name: test_service
+        port: 12345
+        enabled: false
+        critical: false
+
+  tasks:
+    - name: Pokaż wszystkie usługi
+      ansible.builtin.debug:
+        var: monitored_services
+
+    - name: Wybierz tylko włączone usługi
+      ansible.builtin.set_fact:
+        enabled_services: >-
+          {{
+            monitored_services
+            | selectattr('enabled', 'equalto', true)
+            | list
+          }}
+
+    - name: Pokaż włączone usługi
+      ansible.builtin.debug:
+        msg: "{{ item.name }} -> port {{ item.port }}"
+      loop: "{{ enabled_services }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Wybierz tylko usługi krytyczne
+      ansible.builtin.set_fact:
+        critical_services: >-
+          {{
+            monitored_services
+            | selectattr('critical', 'equalto', true)
+            | list
+          }}
+
+    - name: Pokaż usługi krytyczne
+      ansible.builtin.debug:
+        msg: "KRYTYCZNA: {{ item.name }}"
+      loop: "{{ critical_services }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Odrzuć wyłączone usługi
+      ansible.builtin.set_fact:
+        services_without_disabled: >-
+          {{
+            monitored_services
+            | rejectattr('enabled', 'equalto', false)
+            | list
+          }}
+
+    - name: Pokaż usługi po rejectattr
+      ansible.builtin.debug:
+        var: services_without_disabled
+
+    - name: Wybierz tylko aktywne usługi krytyczne
+      ansible.builtin.set_fact:
+        active_critical_services: >-
+          {{
+            monitored_services
+            | selectattr('enabled', 'equalto', true)
+            | selectattr('critical', 'equalto', true)
+            | list
+          }}
+
+    - name: Pokaż aktywne usługi krytyczne
+      ansible.builtin.debug:
+        msg: "ACTIVE+CRITICAL: {{ item.name }} -> port {{ item.port }}"
+      loop: "{{ active_critical_services }}"
+      loop_control:
+        label: "{{ item.name }}"
