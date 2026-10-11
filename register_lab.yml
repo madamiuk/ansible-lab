@@ -63,23 +63,45 @@
         msg: "WildFly ma stan ACTIVE"
       when: wildfly_status.stdout == "active"
 
-    - name: Test changed_when na nieistniejącej usłudze
-      ansible.builtin.command:
-        argv:
-          - systemctl
-          - is-active
-          - wildfly-does-not-exist
-      register: missing_service_changed
-      changed_when: missing_service_changed.stdout != "active"
-      failed_when: false
+    - name: Laboratorium block rescue always
+      block:
+        - name: Sprawdź nieistniejącą usługę
+          ansible.builtin.command:
+            argv:
+              - systemctl
+              - is-active
+              - wildfly-does-not-exist
+          register: missing_service_block
+          changed_when: false
+          failed_when: missing_service_block.stdout != "active"
 
-    - name: Test failed_when na nieistniejącej usłudze
-      ansible.builtin.command:
-        argv:
-          - systemctl
-          - is-active
-          - wildfly-does-not-exist
-      register: missing_service_failed
-      changed_when: false
-      failed_when: missing_service_failed.stdout != "active"
-      ignore_errors: true
+      rescue:
+        - name: Pokaż nazwę taska który zakończył się błędem
+          ansible.builtin.debug:
+            msg: "Błąd wystąpił w tasku: {{ ansible_failed_task.name }}"
+
+        - name: Pokaż wynik błędnego taska
+          ansible.builtin.debug:
+            var: ansible_failed_result
+
+        - name: Obsłuż błąd kontrolowanie
+          ansible.builtin.debug:
+            msg: "Usługa nie działa lub nie istnieje - przechodzę do rescue."
+
+        - name: Zapisz diagnostykę błędu na kontrolerze
+          ansible.builtin.lineinfile:
+            path: "./register_lab_errors.log"
+            create: true
+            mode: "0644"
+            line: >-
+              host={{ inventory_hostname }}
+              task={{ ansible_failed_task.name }}
+              rc={{ ansible_failed_result.rc | default('brak') }}
+              stdout={{ ansible_failed_result.stdout | default('') }}
+              stderr={{ ansible_failed_result.stderr | default('') }}
+          delegate_to: localhost
+
+      always:
+        - name: Wykonaj zadanie niezależnie od wyniku
+          ansible.builtin.debug:
+            msg: "Sekcja always została wykonana."
