@@ -33,6 +33,10 @@
         mode: "0644"
       notify: Pokaż informację o zmianie konfiguracji
 
+
+    - name: Wykonaj oczekujące handlery natychmiast
+      ansible.builtin.meta: flush_handlers
+
   handlers:
     - name: Pokaż informację o zmianie konfiguracji
       ansible.builtin.debug:
