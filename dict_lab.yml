@@ -1,0 +1,40 @@
+---
+- name: Laboratorium słowników
+  hosts: wildfly
+  gather_facts: false
+
+  vars:
+    service_ports:
+      wildfly: 8080
+      sshd: 22
+      wildfly_management: 9990
+
+  tasks:
+    - name: Pokaż cały słownik
+      ansible.builtin.debug:
+        var: service_ports
+
+    - name: Iteruj po słowniku przez dict2items
+      ansible.builtin.debug:
+        msg: "Usługa {{ item.key }} używa portu {{ item.value }}"
+      loop: "{{ service_ports | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+
+    - name: Utwórz listę key value
+      ansible.builtin.set_fact:
+        service_port_items:
+          - key: wildfly
+            value: 8080
+          - key: sshd
+            value: 22
+          - key: wildfly_management
+            value: 9990
+
+    - name: Zamień listę na słownik przez items2dict
+      ansible.builtin.set_fact:
+        service_ports_from_list: "{{ service_port_items | items2dict }}"
+
+    - name: Pokaż słownik utworzony przez items2dict
+      ansible.builtin.debug:
+        var: service_ports_from_list
