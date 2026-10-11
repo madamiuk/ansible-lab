@@ -1,0 +1,16 @@
+# Plik wygenerowany przez Ansible
+# Host: {{ inventory_hostname }}
+
+{% for service in monitored_services %}
+{% if service.enabled %}
+[{{ service.name }}]
+port={{ service.port }}
+critical={{ service.critical }}
+{% if service.critical %}
+alert_level=critical
+{% else %}
+alert_level=normal
+{% endif %}
+
+{% endif %}
+{% endfor %}
