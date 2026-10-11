@@ -31,7 +31,7 @@
         src: templates/services.conf.j2
         dest: "/tmp/services-{{ inventory_hostname }}.conf"
         mode: "0644"
-      notify: Pokaż informację o zmianie konfiguracji
+      notify: Konfiguracja usług zmieniona
 
 
     - name: Wykonaj oczekujące handlery natychmiast
@@ -41,3 +41,9 @@
     - name: Pokaż informację o zmianie konfiguracji
       ansible.builtin.debug:
         msg: "Konfiguracja usług na {{ inventory_hostname }} została zmieniona."
+      listen: Konfiguracja usług zmieniona
+
+    - name: Zapisz dodatkowy komunikat diagnostyczny
+      ansible.builtin.debug:
+        msg: "Handler diagnostyczny wykonany dla {{ inventory_hostname }}."
+      listen: Konfiguracja usług zmieniona
