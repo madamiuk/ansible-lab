@@ -1,0 +1,47 @@
+---
+- name: Laboratorium check mode i diff
+  hosts: wildfly
+  gather_facts: false
+
+  vars:
+    lab_file: "/tmp/ansible-checkmode-lab.conf"
+
+  tasks:
+    - name: Utwórz plik konfiguracyjny
+      ansible.builtin.copy:
+        dest: "{{ lab_file }}"
+        mode: "0644"
+        content: |
+          environment=test
+          managed_by=ansible
+
+    - name: Sprawdź istnienie pliku
+      ansible.builtin.stat:
+        path: "{{ lab_file }}"
+      register: lab_file_stat
+
+    - name: Pokaż stan pliku
+      ansible.builtin.debug:
+        msg: "Plik istnieje: {{ lab_file_stat.stat.exists }}"
+
+    - name: Uruchom polecenie diagnostyczne także w check mode
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - wildfly
+      register: wildfly_check
+      changed_when: false
+      check_mode: false
+
+    - name: Pokaż stan WildFly
+      ansible.builtin.debug:
+        msg: "WildFly={{ wildfly_check.stdout }}"
+
+    - name: Zasymuluj zmianę pliku nawet w normalnym trybie
+      ansible.builtin.copy:
+        dest: "/tmp/ansible-checkmode-forced.conf"
+        mode: "0644"
+        content: |
+          forced_check_mode=true
+      check_mode: true
