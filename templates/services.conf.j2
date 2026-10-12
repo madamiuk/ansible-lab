@@ -1,5 +1,28 @@
 # Plik wygenerowany przez Ansible
 # Host: {{ inventory_hostname }}
+# Grupy hosta: {{ group_names | join(',') }}
+
+{% if inventory_hostname == 'rhel01' %}
+platform_profile=redhat
+{% elif inventory_hostname == 'debian02' %}
+platform_profile=debian
+{% else %}
+platform_profile=unknown
+{% endif %}
+
+# Informacje z hostvars
+current_host={{ inventory_hostname }}
+current_host_address={{ hostvars[inventory_hostname]['ansible_host']
+  | default('brak') }}
+
+# Database test
+{% if 'database' in groups and groups['database'] | length > 0 %}
+database_host={{ hostvars[groups['database'][0]]['ansible_host']
+  | default(groups['database'][0]) }}
+{% else %}
+database_host=brak
+{% endif %}
+
 {% import 'service_macros.j2' as service_macros %}
 
 {% for service in monitored_services %}
