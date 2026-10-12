@@ -1,0 +1,30 @@
+---
+- name: Laboratorium danych wejściowych
+  hosts: localhost
+  gather_facts: false
+
+  vars_prompt:
+    - name: environment_name
+      prompt: "Podaj środowisko: dev, test lub prod"
+      private: false
+
+  tasks:
+    - name: Zweryfikuj podane środowisko
+      ansible.builtin.assert:
+        that:
+          - environment_name in ['dev', 'test', 'prod']
+        fail_msg: "Dozwolone wartości to: dev, test, prod"
+        success_msg: "Wybrano poprawne środowisko: {{ environment_name }}"
+
+    - name: Pokaż wybrane środowisko
+      ansible.builtin.debug:
+        msg: "Pracujemy na środowisku {{ environment_name }}"
+
+    - name: Potwierdź operację na produkcji
+      ansible.builtin.pause:
+        prompt: "UWAGA: wybrano PROD. Naciśnij ENTER, aby kontynuować"
+      when: environment_name == 'prod'
+
+    - name: Kontynuuj wykonanie
+      ansible.builtin.debug:
+        msg: "Kontynuujemy pracę na środowisku {{ environment_name }}"
