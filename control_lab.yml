@@ -1,0 +1,44 @@
+---
+- name: Laboratorium sterowania wykonaniem playbooka
+  hosts: wildfly
+  gather_facts: false
+
+  tasks:
+    - name: Krok 1 - sprawdź WildFly
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - wildfly
+      register: wildfly_state
+      changed_when: false
+      failed_when: false
+      tags:
+        - check
+        - wildfly
+
+    - name: Krok 2 - pokaż stan WildFly
+      ansible.builtin.debug:
+        msg: "WildFly na {{ inventory_hostname }}: {{ wildfly_state.stdout
+          | default('brak') }}"
+      tags:
+        - check
+        - wildfly
+
+    - name: Krok 3 - pokaż host
+      ansible.builtin.debug:
+        msg: "Aktualny host: {{ inventory_hostname }}"
+      tags:
+        - info
+
+    - name: Krok 4 - pokaż grupy hosta
+      ansible.builtin.debug:
+        msg: "Grupy: {{ group_names | join(', ') }}"
+      tags:
+        - info
+
+    - name: Krok 5 - zakończ laboratorium
+      ansible.builtin.debug:
+        msg: "Koniec testu na {{ inventory_hostname }}"
+      tags:
+        - summary
