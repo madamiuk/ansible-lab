@@ -1,0 +1,43 @@
+---
+- name: Laboratorium lookup i query
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Pobierz katalog HOME z environment
+      ansible.builtin.debug:
+        msg: "HOME={{ lookup('env', 'HOME') }}"
+
+    - name: Pobierz hosty grupy wildfly przez query
+      ansible.builtin.set_fact:
+        wildfly_hosts: "{{ query('inventory_hostnames', 'wildfly') }}"
+
+    - name: Pokaż listę hostów WildFly
+      ansible.builtin.debug:
+        var: wildfly_hosts
+
+    - name: Iteruj po hostach zwróconych przez query
+      ansible.builtin.debug:
+        msg: "Host z inventory: {{ item }}"
+      loop: "{{ wildfly_hosts }}"
+
+    - name: Pobierz hosty WildFly przez lookup
+      ansible.builtin.debug:
+        msg: "lookup={{ lookup('inventory_hostnames', 'wildfly') }}"
+
+    - name: Wczytaj cały plik przez lookup file
+      ansible.builtin.debug:
+        msg: "{{ lookup('file', 'lookup_hosts.txt') }}"
+
+    - name: Wczytaj plik jako linie przez query lines
+      ansible.builtin.set_fact:
+        hosts_from_lines: "{{ query('lines', 'cat lookup_hosts.txt') }}"
+
+    - name: Pokaż listę z query lines
+      ansible.builtin.debug:
+        var: hosts_from_lines
+
+    - name: Iteruj po liniach pliku
+      ansible.builtin.debug:
+        msg: "Host z pliku: {{ item }}"
+      loop: "{{ hosts_from_lines }}"
