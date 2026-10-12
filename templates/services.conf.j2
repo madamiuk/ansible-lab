@@ -41,12 +41,4 @@ critical_services={{ monitored_services
   | list
 %}
 
-# Podsumowanie
-active_services_count={{ active_services | length }}
-critical_services_count={{ active_critical_services | length }}
-
-{% if active_critical_services | length > 0 %}
-monitoring_status=critical_services_present
-{% else %}
-monitoring_status=no_critical_services
-{% endif %}
+{% include 'services_summary.j2' %}
