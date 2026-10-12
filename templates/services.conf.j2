@@ -16,3 +16,47 @@ alert_level=normal
 
 {% endif %}
 {% endfor %}
+
+# Lista wszystkich nazw usług
+services={{ monitored_services
+  | selectattr('enabled', 'equalto', true)
+  | selectattr('critical', 'equalto', true)
+  | map(attribute='name')
+  | join(',')
+}}
+
+# Lista właścicieli
+owners={{ monitored_services
+  | map(attribute='owner')
+  | select('defined')
+  | unique
+  | join(',')
+  }}
+
+# Lista aktywnych usług krytycznych
+critical_services={{ monitored_services
+  | selectattr('enabled', 'equalto', true)
+  | selectattr('critical', 'equalto', true)
+  | map(attribute='name')
+  | join(',')
+}}
+
+{% set active_services = monitored_services
+  | selectattr('enabled', 'equalto', true)
+  | list
+%}
+
+{% set active_critical_services = active_services
+  | selectattr('critical', 'equalto', true)
+  | list
+%}
+
+# Podsumowanie
+active_services_count={{ active_services | length }}
+critical_services_count={{ active_critical_services | length }}
+
+{% if active_critical_services | length > 0 %}
+monitoring_status=critical_services_present
+{% else %}
+monitoring_status=no_critical_services
+{% endif %}
