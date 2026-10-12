@@ -1,0 +1,33 @@
+---
+- name: Laboratorium delegowania zadań
+  hosts: wildfly
+  gather_facts: false
+  serial: 1
+
+  tasks:
+    - name: Pokaż host wykonywania normalnego taska
+      ansible.builtin.command:
+        argv:
+          - hostname
+      register: remote_hostname
+      changed_when: false
+
+    - name: Pokaż wynik normalnego taska
+      ansible.builtin.debug:
+        msg: "inventory={{ inventory_hostname }} wykonano_na={{ remote_hostname.stdout }}"
+
+    - name: Wykonaj hostname na kontrolerze
+      ansible.builtin.command:
+        argv:
+          - hostname
+      delegate_to: localhost
+      register: controller_hostname
+      changed_when: false
+
+    - name: Pokaż nazwę kontrolera
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} -> kontroler={{ controller_hostname.stdout }}"
+    - name: Wykonaj zadanie tylko dla pierwszego hosta całego play
+      ansible.builtin.debug:
+        msg: "Ten task wykonuje się tylko raz dla całego play."
+      when: inventory_hostname == ansible_play_hosts_all[0]
