@@ -1,8 +1,6 @@
 # Plik wygenerowany przez Ansible
 # Host: {{ inventory_hostname }}
-
-{% for service in monitored_services %}
-{% if service.enabled %}
+{% macro render_service(service) %}
 [{{ service.name }}]
 port={{ service.port }}
 critical={{ service.critical }}
@@ -14,13 +12,17 @@ alert_level=critical
 alert_level=normal
 {% endif %}
 
+{% endmacro %}
+
+{% for service in monitored_services %}
+{% if service.enabled %}
+{{ render_service(service) }}
 {% endif %}
 {% endfor %}
 
 # Lista wszystkich nazw usług
 services={{ monitored_services
   | selectattr('enabled', 'equalto', true)
-  | selectattr('critical', 'equalto', true)
   | map(attribute='name')
   | join(',')
 }}
