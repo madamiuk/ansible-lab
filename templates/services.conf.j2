@@ -6,6 +6,8 @@
 [{{ service.name }}]
 port={{ service.port }}
 critical={{ service.critical }}
+description={{ service.description | default('brak opisu') }}
+owner={{ service.owner | mandatory | upper }}
 {% if service.critical %}
 alert_level=critical
 {% else %}

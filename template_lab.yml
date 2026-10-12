@@ -9,16 +9,21 @@
         port: 8080
         enabled: true
         critical: true
+        description: "Serwer aplikacyjny WildFly"
+        owner: "middleware"
 
       - name: sshd
         port: 22
         enabled: true
         critical: true
+        owner: "system"
 
       - name: wildfly_management
         port: 9990
         enabled: true
         critical: false
+        description: "Interfejs zarządzający WildFly"
+        owner: "middleware"
 
       - name: test_service
         port: 12345
