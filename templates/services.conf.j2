@@ -1,22 +1,10 @@
 # Plik wygenerowany przez Ansible
 # Host: {{ inventory_hostname }}
-{% macro render_service(service) %}
-[{{ service.name }}]
-port={{ service.port }}
-critical={{ service.critical }}
-description={{ service.description | default('brak opisu') }}
-owner={{ service.owner | mandatory | upper }}
-{% if service.critical %}
-alert_level=critical
-{% else %}
-alert_level=normal
-{% endif %}
-
-{% endmacro %}
+{% import 'service_macros.j2' as service_macros %}
 
 {% for service in monitored_services %}
 {% if service.enabled %}
-{{ render_service(service) }}
+{{ service_macros.render_service(service) }}
 {% endif %}
 {% endfor %}
 
