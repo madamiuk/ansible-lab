@@ -19,3 +19,4 @@ vault-password.txt
 # Maven build output
 target/
 register_lab_errors.log
+.ansible_fact_cache/

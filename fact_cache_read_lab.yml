@@ -1,0 +1,12 @@
+---
+- name: Odczyt faktów z cache
+  hosts: wildfly
+  gather_facts: false
+
+  tasks:
+    - name: Pokaż fakty z cache
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }}
+          distro={{ ansible_facts['distribution'] | default('brak') }}
+          ip={{ ansible_facts['default_ipv4']['address'] | default('brak') }}
