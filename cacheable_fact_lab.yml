@@ -1,0 +1,14 @@
+---
+- name: Laboratorium cacheable set_fact
+  hosts: wildfly
+  gather_facts: false
+
+  tasks:
+    - name: Zapisz własny fakt do cache
+      ansible.builtin.set_fact:
+        lab_application: "wildfly"
+        cacheable: true
+
+    - name: Pokaż zapisany fakt
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} application={{ lab_application }}"

@@ -1,0 +1,11 @@
+---
+- name: Odczyt własnego faktu z cache
+  hosts: wildfly
+  gather_facts: false
+
+  tasks:
+    - name: Pokaż własny fakt z cache
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }}
+          application={{ ansible_facts['lab_application'] | default('brak') }}
