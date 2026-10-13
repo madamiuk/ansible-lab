@@ -1,0 +1,35 @@
+---
+- name: Laboratorium delegate_facts
+  hosts: wildfly
+  gather_facts: false
+
+  tasks:
+    - name: Ustaw fakt na rhel01 z poziomu debian02
+      ansible.builtin.set_fact:
+        delegated_note: "Fakt ustawiony przez {{ inventory_hostname }}"
+      delegate_to: rhel01
+      delegate_facts: true
+      when: inventory_hostname == 'debian02'
+
+    - name: Odczytaj fakt zapisany na rhel01
+      ansible.builtin.debug:
+        msg: "rhel01 delegated_note={{ hostvars['rhel01']['delegated_note'] }}"
+      when:
+        - inventory_hostname == 'debian02'
+        - "'rhel01' in ansible_play_hosts_all"
+
+    - name: Ustaw fakt przez delegację bez delegate_facts
+      ansible.builtin.set_fact:
+        delegated_note_without_flag: "Fakt zapisany bez delegate_facts"
+      delegate_to: rhel01
+      when: inventory_hostname == 'debian02'
+
+    - name: Pokaż fakt na debian02
+      ansible.builtin.debug:
+        msg: "debian02 delegated_note_without_flag={{ hostvars['debian02']['delegated_note_without_flag'] | default('brak') }}"
+      when: inventory_hostname == 'debian02'
+
+    - name: Pokaż fakt na rhel01
+      ansible.builtin.debug:
+        msg: "rhel01 delegated_note_without_flag={{ hostvars['rhel01']['delegated_note_without_flag'] | default('brak') }}"
+      when: inventory_hostname == 'debian02'
