@@ -1,0 +1,37 @@
+---
+- name: Laboratorium local facts
+  hosts: wildfly
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Utwórz katalog local facts
+      ansible.builtin.file:
+        path: /etc/ansible/facts.d
+        state: directory
+        mode: "0755"
+
+    - name: Zapisz własne fakty hosta
+      ansible.builtin.copy:
+        dest: /etc/ansible/facts.d/lab.fact
+        mode: "0644"
+        content: |
+          [general]
+          environment=lab
+          role=wildfly
+          managed_by=ansible
+
+    - name: Odśwież local facts
+      ansible.builtin.setup:
+        filter:
+          - ansible_local
+
+    - name: Pokaż własne local facts
+      ansible.builtin.debug:
+        var: ansible_local
+
+    - name: Wykonaj task tylko dla hostów z rolą WildFly
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} ma local fact role=wildfly"
+      when:
+        - ansible_local['lab']['general']['role'] == 'wildfly'

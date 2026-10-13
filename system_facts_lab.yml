@@ -1,0 +1,23 @@
+---
+- name: Laboratorium facts
+  hosts: wildfly
+  gather_facts: false
+
+  tasks:
+    - name: Pobierz tylko wybrane fakty systemowe
+      ansible.builtin.setup:
+        filter:
+          - ansible_distribution
+          - ansible_distribution_version
+          - ansible_os_family
+          - ansible_hostname
+          - ansible_default_ipv4
+
+    - name: Pokaż podstawowe informacje o hoście
+      ansible.builtin.debug:
+        msg: >-
+          host={{ ansible_facts['hostname'] }}
+          distro={{ ansible_facts['distribution'] }}
+          version={{ ansible_facts['distribution_version'] }}
+          family={{ ansible_facts['os_family'] }}
+          ip={{ ansible_facts['default_ipv4']['address'] | default('brak') }}
