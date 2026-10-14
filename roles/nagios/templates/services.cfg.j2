@@ -22,7 +22,32 @@ define service {
     service_description     WildFly HTTP
     check_command           check_nrpe!check_wildfly_http
 }
+define service {
+    use                     generic-service
+    host_name               {{ host }}
+    service_description     System Load
+    check_command           check_nrpe!check_load
+}
+define service {
+    use                     generic-service
+    host_name               {{ host }}
+    service_description     Root Disk
+    check_command           check_nrpe!check_disk_root
+}
+define service {
+    use                     generic-service
+    host_name               {{ host }}
+    service_description     Processes
+    check_command           check_nrpe!check_procs
+}
+define service {
+    use                     generic-service
+    host_name               {{ host }}
+    service_description     Memory
+    check_command           check_nrpe!check_memory
+}
 {% endif %}
+
 
 {% if host in groups['database'] %}
 define service {

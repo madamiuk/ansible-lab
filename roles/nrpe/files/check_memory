@@ -1,0 +1,32 @@
+#!/bin/bash
+
+WARNING=80
+CRITICAL=90
+
+MEM_TOTAL=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
+MEM_AVAILABLE=$(awk '/MemAvailable/ {print $2}' /proc/meminfo)
+
+if [[ -z "$MEM_TOTAL" || -z "$MEM_AVAILABLE" ]]; then
+    echo "MEMORY UNKNOWN - cannot read /proc/meminfo"
+    exit 3
+fi
+
+MEM_USED=$((MEM_TOTAL - MEM_AVAILABLE))
+USED_PERCENT=$(awk "BEGIN {printf \"%.1f\", ($MEM_USED/$MEM_TOTAL)*100}")
+
+USED_INT=${USED_PERCENT%.*}
+
+if (( USED_INT >= CRITICAL )); then
+    STATUS="CRITICAL"
+    EXIT_CODE=2
+elif (( USED_INT >= WARNING )); then
+    STATUS="WARNING"
+    EXIT_CODE=1
+else
+    STATUS="OK"
+    EXIT_CODE=0
+fi
+
+echo "MEMORY $STATUS - used ${USED_PERCENT}% | used=${USED_PERCENT}%;${WARNING};${CRITICAL};0;100"
+
+exit $EXIT_CODE

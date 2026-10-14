@@ -6,6 +6,9 @@
       - nagios-plugins-nrpe
       - nagios-plugins
       - nagios-plugins-tcp
+      - nagios-plugins-load
+      - nagios-plugins-disk
+      - nagios-plugins-procs
     state: present
 
 - name: Zezwól serwerowi Nagios na połączenia NRPE
@@ -23,6 +26,32 @@
     mode: "0644"
     content: |
       command[check_wildfly_http]=/usr/lib64/nagios/plugins/check_tcp -H 127.0.0.1 -p 8080
+  notify: Restart NRPE RedHat
+
+- name: Skonfiguruj systemowe checki NRPE
+  ansible.builtin.copy:
+    dest: /etc/nrpe.d/system.cfg
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      command[check_load]=/usr/lib64/nagios/plugins/check_load -w 5,4,3 -c 10,8,6
+      command[check_disk_root]=/usr/lib64/nagios/plugins/check_disk -w 20% -c 10% -p /
+      command[check_procs]=/usr/lib64/nagios/plugins/check_procs -w 250 -c 400
+  notify: Restart NRPE RedHat
+
+- name: Zainstaluj plugin check_memory
+  ansible.builtin.copy:
+    src: check_memory
+    dest: /usr/lib64/nagios/plugins/check_memory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Dodaj check pamięci do NRPE
+  ansible.builtin.lineinfile:
+    path: /etc/nrpe.d/system.cfg
+    line: "command[check_memory]=/usr/lib64/nagios/plugins/check_memory"
   notify: Restart NRPE RedHat
 
 - name: Uruchom i włącz NRPE na RedHat
