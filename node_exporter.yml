@@ -1,0 +1,8 @@
+---
+- name: Instalacja i konfiguracja Node Exporter
+  hosts: all
+  become: true
+  gather_facts: true
+
+  roles:
+    - node_exporter
