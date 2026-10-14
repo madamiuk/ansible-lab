@@ -1,0 +1,32 @@
+---
+- name: Zainstaluj NRPE i pluginy na RedHat
+  ansible.builtin.dnf:
+    name:
+      - nrpe
+      - nagios-plugins-nrpe
+      - nagios-plugins
+      - nagios-plugins-tcp
+    state: present
+
+- name: Zezwól serwerowi Nagios na połączenia NRPE
+  ansible.builtin.lineinfile:
+    path: /etc/nagios/nrpe.cfg
+    regexp: '^allowed_hosts='
+    line: "allowed_hosts=127.0.0.1,::1,{{ nrpe_monitoring_server }}"
+  notify: Restart NRPE RedHat
+
+- name: Skonfiguruj lokalny check WildFly
+  ansible.builtin.copy:
+    dest: /etc/nrpe.d/wildfly.cfg
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      command[check_wildfly_http]=/usr/lib64/nagios/plugins/check_tcp -H 127.0.0.1 -p 8080
+  notify: Restart NRPE RedHat
+
+- name: Uruchom i włącz NRPE na RedHat
+  ansible.builtin.service:
+    name: nrpe
+    state: started
+    enabled: true

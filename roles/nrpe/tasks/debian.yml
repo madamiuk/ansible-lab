@@ -1,0 +1,31 @@
+---
+- name: Zainstaluj NRPE na Debianie
+  ansible.builtin.apt:
+    name:
+      - nagios-nrpe-server
+      - nagios-plugins
+    state: present
+    update_cache: true
+
+- name: Zezwól serwerowi Nagios na połączenia NRPE
+  ansible.builtin.lineinfile:
+    path: /etc/nagios/nrpe.cfg
+    regexp: '^allowed_hosts='
+    line: "allowed_hosts=127.0.0.1,::1,{{ nrpe_monitoring_server }}"
+  notify: Restart NRPE Debian
+
+- name: Skonfiguruj lokalny check WildFly
+  ansible.builtin.copy:
+    dest: /etc/nagios/nrpe.d/wildfly.cfg
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      command[check_wildfly_http]=/usr/lib/nagios/plugins/check_tcp -H 127.0.0.1 -p 8080
+  notify: Restart NRPE Debian
+
+- name: Uruchom i włącz NRPE na Debianie
+  ansible.builtin.service:
+    name: nagios-nrpe-server
+    state: started
+    enabled: true

@@ -1,0 +1,46 @@
+{% for host in groups['all'] %}
+{% if host != inventory_hostname %}
+
+define service {
+    use                     generic-service
+    host_name               {{ host }}
+    service_description     PING
+    check_command           check_ping!100.0,20%!500.0,60%
+}
+
+define service {
+    use                     generic-service
+    host_name               {{ host }}
+    service_description     SSH
+    check_command           check_ssh
+}
+
+{% if host in groups['wildfly'] %}
+define service {
+    use                     generic-service
+    host_name               {{ host }}
+    service_description     WildFly HTTP
+    check_command           check_nrpe!check_wildfly_http
+}
+{% endif %}
+
+{% if host in groups['database'] %}
+define service {
+    use                     generic-service
+    host_name               {{ host }}
+    service_description     PostgreSQL
+    check_command           check_tcp!5432
+}
+{% endif %}
+
+{% if host in groups['webservers'] %}
+define service {
+    use                     generic-service
+    host_name               {{ host }}
+    service_description     HTTP
+    check_command           check_http
+}
+{% endif %}
+
+{% endif %}
+{% endfor %}

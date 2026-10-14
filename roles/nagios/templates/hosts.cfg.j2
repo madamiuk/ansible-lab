@@ -1,0 +1,10 @@
+{% for host in groups['all'] %}
+{% if host != inventory_hostname %}
+define host {
+    use                 linux-server
+    host_name           {{ host }}
+    alias               {{ host }}
+    address             {{ hostvars[host]['ansible_host'] | default(host) }}
+}
+{% endif %}
+{% endfor %}

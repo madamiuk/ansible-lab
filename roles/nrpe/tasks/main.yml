@@ -1,0 +1,8 @@
+---
+- name: Dołącz zadania dla Debiana
+  ansible.builtin.include_tasks: debian.yml
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Dołącz zadania dla RedHat
+  ansible.builtin.include_tasks: redhat.yml
+  when: ansible_facts['os_family'] == 'RedHat'

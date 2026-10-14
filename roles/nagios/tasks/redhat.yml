@@ -65,3 +65,62 @@
   when: nagios_password_check.rc != 0
   no_log: true
   notify: Restart httpd
+
+- name: Dodaj plik hosts.cfg do konfiguracji Nagios
+  ansible.builtin.lineinfile:
+    path: /etc/nagios/nagios.cfg
+    line: "cfg_file=/etc/nagios/objects/hosts.cfg"
+    state: present
+  notify: Restart nagios
+
+- name: Wygeneruj konfigurację monitorowanych hostów
+  ansible.builtin.template:
+    src: hosts.cfg.j2
+    dest: /etc/nagios/objects/hosts.cfg
+    owner: root
+    group: nagios
+    mode: "0644"
+  notify: Restart nagios
+
+- name: Dodaj plik services.cfg do konfiguracji Nagios
+  ansible.builtin.lineinfile:
+    path: /etc/nagios/nagios.cfg
+    line: "cfg_file=/etc/nagios/objects/services.cfg"
+    state: present
+  notify: Restart nagios
+
+- name: Wygeneruj konfigurację monitorowanych usług
+  ansible.builtin.template:
+    src: services.cfg.j2
+    dest: /etc/nagios/objects/services.cfg
+    owner: root
+    group: nagios
+    mode: "0644"
+  notify: Restart nagios
+
+- name: Dodaj plik commands_nrpe.cfg do konfiguracji Nagios
+  ansible.builtin.lineinfile:
+    path: /etc/nagios/nagios.cfg
+    line: "cfg_file=/etc/nagios/objects/commands_nrpe.cfg"
+    state: present
+  notify: Restart nagios
+
+- name: Wygeneruj komendę check_nrpe
+  ansible.builtin.template:
+    src: commands_nrpe.cfg.j2
+    dest: /etc/nagios/objects/commands_nrpe.cfg
+    owner: root
+    group: nagios
+    mode: "0644"
+  notify: Restart nagios
+
+- name: Sprawdź konfigurację Nagios po zmianach
+  ansible.builtin.command:
+    argv:
+      - nagios
+      - -v
+      - /etc/nagios/nagios.cfg
+  changed_when: false
+
+- name: Wykonaj oczekujące handlery
+  ansible.builtin.meta: flush_handlers

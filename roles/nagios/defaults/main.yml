@@ -13,5 +13,6 @@ nagios_packages:
   - nagios-plugins-users
   - nagios-plugins-pgsql
   - nagios-plugins-systemd
+  - nagios-plugins-nrpe
 nagios_admin_user: nagiosadmin
 nagios_admin_password: "{{ vault_nagios_admin_password }}"

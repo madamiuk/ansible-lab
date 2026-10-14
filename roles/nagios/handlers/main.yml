@@ -3,3 +3,8 @@
   ansible.builtin.service:
     name: httpd
     state: restarted
+
+- name: Restart nagios
+  ansible.builtin.service:
+    name: nagios
+    state: restarted

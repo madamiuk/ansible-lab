@@ -1,0 +1,8 @@
+---
+- name: Instalacja i konfiguracja NRPE
+  hosts: wildfly
+  become: true
+  gather_facts: true
+
+  roles:
+    - nrpe

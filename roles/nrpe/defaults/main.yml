@@ -1,0 +1,4 @@
+---
+nrpe_monitoring_server: >-
+  {{ hostvars[groups['monitoring'][0]]['ansible_host']
+     | default(groups['monitoring'][0]) }}
