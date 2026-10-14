@@ -1,0 +1,12 @@
+---
+- name: Pokaż wykryty system
+  ansible.builtin.debug:
+    msg: >-
+      host={{ inventory_hostname }}
+      distribution={{ ansible_facts['distribution'] }}
+      version={{ ansible_facts['distribution_version'] }}
+      family={{ ansible_facts['os_family'] }}
+
+- name: Dołącz zadania dla rodziny RedHat
+  ansible.builtin.include_tasks: redhat.yml
+  when: ansible_facts['os_family'] == 'RedHat'

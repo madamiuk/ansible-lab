@@ -1,0 +1,67 @@
+---
+- name: Zainstaluj konfigurację repozytorium Oracle EPEL
+  ansible.builtin.dnf:
+    name: oracle-epel-release-el9
+    state: present
+
+- name: Sprawdź aktywne repozytoria
+  ansible.builtin.command:
+    argv:
+      - dnf
+      - repolist
+      - --enabled
+  register: nagios_enabled_repos
+  changed_when: false
+
+- name: Włącz repozytorium Oracle EPEL
+  ansible.builtin.command:
+    argv:
+      - dnf
+      - config-manager
+      - --set-enabled
+      - ol9_developer_EPEL
+  when: "'ol9_developer_EPEL' not in nagios_enabled_repos.stdout"
+
+- name: Zainstaluj Nagios i podstawowe pluginy
+  ansible.builtin.dnf:
+    name: "{{ nagios_packages }}"
+    state: present
+
+- name: Sprawdź konfigurację Nagios
+  ansible.builtin.command:
+    argv:
+      - nagios
+      - -v
+      - /etc/nagios/nagios.cfg
+  changed_when: false
+
+- name: Uruchom i włącz Nagios
+  ansible.builtin.service:
+    name: nagios
+    state: started
+    enabled: true
+
+- name: Sprawdź hasło administratora Nagios
+  ansible.builtin.command:
+    argv:
+      - /bin/htpasswd
+      - -vi
+      - /etc/nagios/passwd
+      - "{{ nagios_admin_user }}"
+    stdin: "{{ nagios_admin_password }}"
+  register: nagios_password_check
+  changed_when: false
+  failed_when: false
+  no_log: true
+
+- name: Ustaw hasło administratora Nagios
+  ansible.builtin.command:
+    argv:
+      - /bin/htpasswd
+      - -iB
+      - /etc/nagios/passwd
+      - "{{ nagios_admin_user }}"
+    stdin: "{{ nagios_admin_password }}"
+  when: nagios_password_check.rc != 0
+  no_log: true
+  notify: Restart httpd

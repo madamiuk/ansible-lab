@@ -1,0 +1,17 @@
+---
+nagios_packages:
+  - nagios
+  - nagios-plugins
+  - nagios-plugins-disk
+  - nagios-plugins-http
+  - nagios-plugins-load
+  - nagios-plugins-ping
+  - nagios-plugins-procs
+  - nagios-plugins-ssh
+  - nagios-plugins-swap
+  - nagios-plugins-tcp
+  - nagios-plugins-users
+  - nagios-plugins-pgsql
+  - nagios-plugins-systemd
+nagios_admin_user: nagiosadmin
+nagios_admin_password: "{{ vault_nagios_admin_password }}"
