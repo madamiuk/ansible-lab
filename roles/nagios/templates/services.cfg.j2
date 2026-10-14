@@ -33,7 +33,7 @@ define service {
 }
 {% endif %}
 
-{% if host in groups['webservers'] %}
+{% if host in groups['http_servers'] %}
 define service {
     use                     generic-service
     host_name               {{ host }}
