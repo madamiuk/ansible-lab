@@ -1,0 +1,8 @@
+---
+- name: Instalacja i konfiguracja Grafana
+  hosts: monitoring
+  become: true
+  gather_facts: true
+
+  roles:
+    - grafana

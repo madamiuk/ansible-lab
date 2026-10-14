@@ -1,0 +1,67 @@
+---
+- name: Pobierz klucz GPG Grafana
+  ansible.builtin.get_url:
+    url: https://rpm.grafana.com/gpg.key
+    dest: /etc/pki/rpm-gpg/RPM-GPG-KEY-GRAFANA
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Zaimportuj klucz GPG Grafana
+  ansible.builtin.rpm_key:
+    state: present
+    key: /etc/pki/rpm-gpg/RPM-GPG-KEY-GRAFANA
+
+- name: Skonfiguruj repozytorium Grafana
+  ansible.builtin.template:
+    src: grafana.repo.j2
+    dest: /etc/yum.repos.d/grafana.repo
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Zainstaluj Grafana OSS
+  ansible.builtin.dnf:
+    name: grafana
+    state: present
+
+- name: Skonfiguruj datasource Prometheus
+  ansible.builtin.template:
+    src: prometheus-datasource.yml.j2
+    dest: /etc/grafana/provisioning/datasources/prometheus.yml
+    owner: root
+    group: grafana
+    mode: "0640"
+  notify: Restart grafana
+
+- name: Utwórz katalog dashboardów Grafana
+  ansible.builtin.file:
+    path: /var/lib/grafana/dashboards
+    state: directory
+    owner: grafana
+    group: grafana
+    mode: "0755"
+
+- name: Skonfiguruj provisioning dashboardów
+  ansible.builtin.template:
+    src: dashboards.yml.j2
+    dest: /etc/grafana/provisioning/dashboards/ansible-lab.yml
+    owner: root
+    group: grafana
+    mode: "0640"
+  notify: Restart grafana
+
+- name: Zainstaluj dashboard Ansible Lab
+  ansible.builtin.copy:
+    src: dashboards/ansible-lab-overview.json
+    dest: /var/lib/grafana/dashboards/ansible-lab-overview.json
+    owner: grafana
+    group: grafana
+    mode: "0644"
+  notify: Restart grafana
+
+- name: Uruchom i włącz Grafana
+  ansible.builtin.systemd:
+    name: grafana-server
+    state: started
+    enabled: true
