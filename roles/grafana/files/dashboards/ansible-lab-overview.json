@@ -68,7 +68,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Load average",
+      "title": "Load 1 min",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
@@ -76,53 +76,56 @@
       "targets": [
         {
           "expr": "node_load1{host=~\"$host\"}",
-          "legendFormat": "{{host}} load1",
+          "legendFormat": "{{host}}",
           "refId": "A"
-        },
-        {
-          "expr": "node_load5{host=~\"$host\"}",
-          "legendFormat": "{{host}} load5",
-          "refId": "B"
-        },
-        {
-          "expr": "node_load15{host=~\"$host\"}",
-          "legendFormat": "{{host}} load15",
-          "refId": "C"
         }
       ],
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 8,
         "x": 0,
         "y": 8
       }
     },
     {
       "type": "timeseries",
-      "title": "Root filesystem usage",
+      "title": "Load 5 min",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
       "targets": [
         {
-          "expr": "100 * (1 - (node_filesystem_avail_bytes{host=~\"$host\",mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{host=~\"$host\",mountpoint=\"/\",fstype!~\"tmpfs|overlay\"}))",
+          "expr": "node_load5{host=~\"$host\"}",
           "legendFormat": "{{host}}",
           "refId": "A"
         }
       ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "min": 0,
-          "max": 100
-        },
-        "overrides": []
-      },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
+        "w": 8,
+        "x": 8,
+        "y": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Load 15 min",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "expr": "node_load15{host=~\"$host\"}",
+          "legendFormat": "{{host}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
         "y": 8
       }
     },
@@ -178,6 +181,35 @@
         "w": 12,
         "x": 12,
         "y": 16
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Root filesystem usage",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "expr": "100 * (1 - (node_filesystem_avail_bytes{host=~\"$host\",mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{host=~\"$host\",mountpoint=\"/\",fstype!~\"tmpfs|overlay\"}))",
+          "legendFormat": "{{host}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 24
       }
     }
   ],
