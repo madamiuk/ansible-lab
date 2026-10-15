@@ -16,3 +16,208 @@ groups:
             Prometheus cannot scrape Node Exporter on
             {{ '{{' }} $labels.instance {{ '}}' }}
             for more than 1 minute.
+
+      # --------------------------------------------------------
+      # CPU
+      # --------------------------------------------------------
+
+      - alert: HighCPUWarning
+        expr: |
+          (
+            100 -
+            (
+              avg by(host) (
+                rate(node_cpu_seconds_total{job="node_exporter",mode="idle"}[5m])
+              ) * 100
+            )
+          ) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ '{{' }} $labels.host {{ '}}' }}"
+          description: >-
+            CPU usage on {{ '{{' }} $labels.host {{ '}}' }}
+            has been above 80% for more than 5 minutes.
+
+      - alert: HighCPUCritical
+        expr: |
+          (
+            100 -
+            (
+              avg by(host) (
+                rate(node_cpu_seconds_total{job="node_exporter",mode="idle"}[5m])
+              ) * 100
+            )
+          ) > 90
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical CPU usage on {{ '{{' }} $labels.host {{ '}}' }}"
+          description: >-
+            CPU usage on {{ '{{' }} $labels.host {{ '}}' }}
+            has been above 90% for more than 2 minutes.
+
+
+      # --------------------------------------------------------
+      # MEMORY
+      # --------------------------------------------------------
+
+      - alert: HighMemoryWarning
+        expr: |
+          (
+            100 *
+            (
+              1 -
+              (
+                node_memory_MemAvailable_bytes{job="node_exporter"}
+                /
+                node_memory_MemTotal_bytes{job="node_exporter"}
+              )
+            )
+          ) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ '{{' }} $labels.host {{ '}}' }}"
+          description: >-
+            Memory usage on {{ '{{' }} $labels.host {{ '}}' }}
+            has been above 80% for more than 5 minutes.
+
+      - alert: HighMemoryCritical
+        expr: |
+          (
+            100 *
+            (
+              1 -
+              (
+                node_memory_MemAvailable_bytes{job="node_exporter"}
+                /
+                node_memory_MemTotal_bytes{job="node_exporter"}
+              )
+            )
+          ) > 90
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical memory usage on {{ '{{' }} $labels.host {{ '}}' }}"
+          description: >-
+            Memory usage on {{ '{{' }} $labels.host {{ '}}' }}
+            has been above 90% for more than 2 minutes.
+
+
+      # --------------------------------------------------------
+      # ROOT FILESYSTEM
+      # --------------------------------------------------------
+
+      - alert: RootFilesystemWarning
+        expr: |
+          (
+            100 *
+            (
+              1 -
+              (
+                node_filesystem_avail_bytes{
+                  job="node_exporter",
+                  mountpoint="/",
+                  fstype!~"tmpfs|overlay"
+                }
+                /
+                node_filesystem_size_bytes{
+                  job="node_exporter",
+                  mountpoint="/",
+                  fstype!~"tmpfs|overlay"
+                }
+              )
+            )
+          ) > 80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Root filesystem usage high on {{ '{{' }} $labels.host {{ '}}' }}"
+          description: >-
+            Root filesystem usage on {{ '{{' }} $labels.host {{ '}}' }}
+            has been above 80% for more than 10 minutes.
+
+      - alert: RootFilesystemCritical
+        expr: |
+          (
+            100 *
+            (
+              1 -
+              (
+                node_filesystem_avail_bytes{
+                  job="node_exporter",
+                  mountpoint="/",
+                  fstype!~"tmpfs|overlay"
+                }
+                /
+                node_filesystem_size_bytes{
+                  job="node_exporter",
+                  mountpoint="/",
+                  fstype!~"tmpfs|overlay"
+                }
+              )
+            )
+          ) > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Root filesystem CRITICAL on {{ '{{' }} $labels.host {{ '}}' }}"
+          description: >-
+            Root filesystem usage on {{ '{{' }} $labels.host {{ '}}' }}
+            has been above 90% for more than 5 minutes.
+
+
+      # --------------------------------------------------------
+      # LOAD
+      # --------------------------------------------------------
+
+      - alert: HighLoadWarning
+        expr: |
+          (
+            node_load1{job="node_exporter"}
+            /
+            on(host)
+            count by(host) (
+              node_cpu_seconds_total{
+                job="node_exporter",
+                mode="idle"
+              }
+            )
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High system load on {{ '{{' }} $labels.host {{ '}}' }}"
+          description: >-
+            1-minute load average on {{ '{{' }} $labels.host {{ '}}' }}
+            has exceeded the number of CPU cores for more than 5 minutes.
+
+      - alert: HighLoadCritical
+        expr: |
+          (
+            node_load1{job="node_exporter"}
+            /
+            on(host)
+            count by(host) (
+              node_cpu_seconds_total{
+                job="node_exporter",
+                mode="idle"
+              }
+            )
+          ) > 2
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical system load on {{ '{{' }} $labels.host {{ '}}' }}"
+          description: >-
+            1-minute load average on {{ '{{' }} $labels.host {{ '}}' }}
+            has exceeded twice the number of CPU cores for more than 2 minutes.

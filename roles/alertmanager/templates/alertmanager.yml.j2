@@ -1,15 +1,34 @@
----
 global:
   resolve_timeout: 5m
+
+  smtp_smarthost: "{{ alertmanager_smtp_smarthost }}"
+  smtp_from: "{{ alertmanager_smtp_from }}"
+  smtp_auth_username: "{{ vault_alertmanager_gmail_username }}"
+  smtp_auth_password: "{{ vault_alertmanager_gmail_app_password }}"
+  smtp_require_tls: true
 
 route:
   receiver: "default"
   group_by:
     - alertname
     - host
+    - severity
   group_wait: 10s
   group_interval: 30s
   repeat_interval: 1h
 
+  routes:
+    - matchers:
+        - severity="critical"
+      receiver: "critical"
+
+    - matchers:
+        - severity="warning"
+      receiver: "warning"
+
 receivers:
   - name: "default"
+
+  - name: "warning"
+
+  - name: "critical"
