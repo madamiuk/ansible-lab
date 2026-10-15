@@ -80,6 +80,15 @@
     mode: "0644"
   notify: Restart prometheus
 
+- name: Wdróż reguły alertów Prometheus
+  ansible.builtin.template:
+    src: alerts.yml.j2
+    dest: /etc/prometheus/alerts.yml
+    owner: prometheus
+    group: prometheus
+    mode: "0644"
+  notify: Restart prometheus
+
 - name: Sprawdź konfigurację Prometheus
   ansible.builtin.command:
     cmd: "/usr/local/bin/promtool check config {{ prometheus_config_dir }}/prometheus.yml"

@@ -1,0 +1,18 @@
+---
+groups:
+  - name: ansible_lab
+    rules:
+
+      - alert: NodeExporterDown
+        expr: up{job="node_exporter"} == 0
+        for: 1m
+
+        labels:
+          severity: critical
+
+        annotations:
+          summary: "Node Exporter DOWN on {{ '{{' }} $labels.host {{ '}}' }}"
+          description: >-
+            Prometheus cannot scrape Node Exporter on
+            {{ '{{' }} $labels.instance {{ '}}' }}
+            for more than 1 minute.

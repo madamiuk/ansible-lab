@@ -1,0 +1,7 @@
+---
+- name: Instalacja i konfiguracja Alertmanager
+  hosts: monitoring
+  become: true
+
+  roles:
+    - alertmanager
