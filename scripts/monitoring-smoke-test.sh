@@ -110,6 +110,7 @@ check_service httpd
 check_service prometheus
 check_service grafana-server
 check_service node_exporter
+check_service alertmanager
 
 
 # ------------------------------------------------------------
@@ -122,6 +123,7 @@ check_port 80   "Apache / Nagios"
 check_port 9090 "Prometheus"
 check_port 3000 "Grafana"
 check_port 9100 "Node Exporter"
+check_port 9093 "Alertmanager"
 
 
 # ------------------------------------------------------------
@@ -267,12 +269,167 @@ while IFS='|' read -r health job host instance; do
 
 done <<< "$TARGET_RESULT"
 
+# ------------------------------------------------------------
+# Alertmanager
+# ------------------------------------------------------------
+
+section "8. Alertmanager"
+
+ALERTMANAGER_READY=$(
+    curl -s --max-time 5 \
+        http://127.0.0.1:9093/-/ready 2>/dev/null
+)
+
+if [[ "$ALERTMANAGER_READY" == "OK" ]]; then
+    ok "Alertmanager jest READY"
+else
+    fail "Alertmanager nie odpowiada jako READY"
+fi
+
+if /usr/local/bin/amtool check-config \
+    /etc/alertmanager/alertmanager.yml >/dev/null 2>&1; then
+    ok "Konfiguracja Alertmanager jest poprawna"
+else
+    fail "Błąd konfiguracji Alertmanager"
+fi
+
+
+# ------------------------------------------------------------
+# Reguły Prometheus
+# ------------------------------------------------------------
+
+section "9. Reguły alertów Prometheus"
+
+if /usr/local/bin/promtool check rules \
+    /etc/prometheus/alerts.yml >/dev/null 2>&1; then
+    ok "Plik reguł Prometheus jest poprawny"
+else
+    fail "Błąd reguł Prometheus"
+fi
+
+RULE_RESULT=$(
+curl -s --max-time 5 \
+    http://127.0.0.1:9090/api/v1/rules |
+python3 -c '
+import json
+import sys
+
+try:
+    data = json.load(sys.stdin)
+except Exception as exc:
+    print("ERROR|{}".format(exc))
+    sys.exit(2)
+
+count = 0
+failed = 0
+
+for group in data["data"]["groups"]:
+    for rule in group["rules"]:
+        if rule.get("type") != "alerting":
+            continue
+
+        count += 1
+
+        name = rule.get("name", "?")
+        health = rule.get("health", "unknown")
+        state = rule.get("state", "unknown")
+
+        print("{}|{}|{}".format(name, health, state))
+
+        if health != "ok":
+            failed += 1
+
+print("COUNT|{}|".format(count))
+
+sys.exit(1 if failed else 0)
+'
+)
+
+while IFS='|' read -r name health state; do
+
+    [[ -z "$name" ]] && continue
+
+    if [[ "$name" == "ERROR" ]]; then
+        fail "Nie można odczytać reguł z API Prometheus: $health"
+        continue
+    fi
+
+    if [[ "$name" == "COUNT" ]]; then
+        ok "Prometheus załadował $health reguł alertowych"
+        continue
+    fi
+
+    if [[ "$health" == "ok" ]]; then
+        ok "Reguła $name: health=$health state=$state"
+    else
+        fail "Reguła $name: health=$health state=$state"
+    fi
+
+done <<< "$RULE_RESULT"
+
+
+# ------------------------------------------------------------
+# Aktywne alerty
+# ------------------------------------------------------------
+
+section "10. Aktywne alerty"
+
+PROM_ALERT_COUNT=$(
+curl -s --max-time 5 \
+    http://127.0.0.1:9090/api/v1/alerts |
+python3 -c '
+import json
+import sys
+
+try:
+    data = json.load(sys.stdin)
+    print(len(data["data"]["alerts"]))
+except Exception:
+    sys.exit(1)
+'
+)
+
+if [[ $? -eq 0 ]]; then
+    if [[ "$PROM_ALERT_COUNT" -eq 0 ]]; then
+        ok "Prometheus: brak aktywnych alertów"
+    else
+        warn "Prometheus: aktywne alerty = $PROM_ALERT_COUNT"
+    fi
+else
+    fail "Nie można odczytać alertów Prometheus"
+fi
+
+
+AM_ALERT_COUNT=$(
+curl -s --max-time 5 \
+    http://127.0.0.1:9093/api/v2/alerts |
+python3 -c '
+import json
+import sys
+
+try:
+    data = json.load(sys.stdin)
+    print(len(data))
+except Exception:
+    sys.exit(1)
+'
+)
+
+if [[ $? -eq 0 ]]; then
+    if [[ "$AM_ALERT_COUNT" -eq 0 ]]; then
+        ok "Alertmanager: brak aktywnych alertów"
+    else
+        warn "Alertmanager: aktywne alerty = $AM_ALERT_COUNT"
+    fi
+else
+    fail "Nie można odczytać alertów Alertmanager"
+fi
 
 # ------------------------------------------------------------
 # NRPE / WildFly
 # ------------------------------------------------------------
 
-section "8. NRPE / WildFly"
+section "11. NRPE / WildFly"
 
 CHECK_NRPE="/usr/lib64/nagios/plugins/check_nrpe"
 

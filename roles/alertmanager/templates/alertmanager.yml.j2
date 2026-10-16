@@ -1,12 +1,6 @@
 global:
   resolve_timeout: 5m
 
-  smtp_smarthost: "{{ alertmanager_smtp_smarthost }}"
-  smtp_from: "{{ alertmanager_smtp_from }}"
-  smtp_auth_username: "{{ vault_alertmanager_gmail_username }}"
-  smtp_auth_password: "{{ vault_alertmanager_gmail_app_password }}"
-  smtp_require_tls: true
-
 route:
   receiver: "default"
   group_by:
@@ -25,6 +19,35 @@ route:
     - matchers:
         - severity="warning"
       receiver: "warning"
+
+inhibit_rules:
+  - source_matchers:
+      - alertname="HighCPUCritical"
+    target_matchers:
+      - alertname="HighCPUWarning"
+    equal:
+      - host
+
+  - source_matchers:
+      - alertname="HighMemoryCritical"
+    target_matchers:
+      - alertname="HighMemoryWarning"
+    equal:
+      - host
+
+  - source_matchers:
+      - alertname="RootFilesystemCritical"
+    target_matchers:
+      - alertname="RootFilesystemWarning"
+    equal:
+      - host
+
+  - source_matchers:
+      - alertname="HighLoadCritical"
+    target_matchers:
+      - alertname="HighLoadWarning"
+    equal:
+      - host
 
 receivers:
   - name: "default"
