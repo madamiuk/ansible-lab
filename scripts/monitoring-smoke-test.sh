@@ -111,7 +111,7 @@ check_service prometheus
 check_service grafana-server
 check_service node_exporter
 check_service alertmanager
-
+check_service sms-webhook
 
 # ------------------------------------------------------------
 # Porty

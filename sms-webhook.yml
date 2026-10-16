@@ -5,3 +5,20 @@
 
   roles:
     - sms_webhook
+
+  tasks:
+    - name: Utwórz katalog scripts użytkownika ma
+      ansible.builtin.file:
+        path: /home/ma/scripts
+        state: directory
+        owner: ma
+        group: ma
+        mode: "0755"
+
+    - name: Wdróż monitoring smoke test
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/scripts/monitoring-smoke-test.sh"
+        dest: /home/ma/scripts/monitoring-smoke-test.sh
+        owner: ma
+        group: ma
+        mode: "0755"
