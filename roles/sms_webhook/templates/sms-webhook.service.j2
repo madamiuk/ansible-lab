@@ -8,6 +8,8 @@ Type=simple
 User={{ sms_webhook_user }}
 Group={{ sms_webhook_group }}
 
+EnvironmentFile={{ sms_webhook_env_file }}
+
 ExecStart=/usr/bin/python3 {{ sms_webhook_script }}
 
 Restart=on-failure

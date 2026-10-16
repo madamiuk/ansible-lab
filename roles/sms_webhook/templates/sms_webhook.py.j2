@@ -1,17 +1,104 @@
 #!/usr/bin/env python3
 
+import base64
 import json
 import logging
+import os
+
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 
 BIND_ADDRESS = "{{ sms_webhook_bind_address }}"
 PORT = {{ sms_webhook_port }}
 
+GATEWAY_URL = os.environ["ANDROID_SMS_GATEWAY_URL"]
+GATEWAY_USERNAME = os.environ["ANDROID_SMS_GATEWAY_USERNAME"]
+GATEWAY_PASSWORD = os.environ["ANDROID_SMS_GATEWAY_PASSWORD"]
+SMS_RECIPIENT = os.environ["SMS_RECIPIENT"]
+
+SEND_FIRING = os.environ.get("SMS_SEND_FIRING", "true").lower() == "true"
+SEND_RESOLVED = os.environ.get("SMS_SEND_RESOLVED", "true").lower() == "true"
+HTTP_TIMEOUT = int(os.environ.get("SMS_HTTP_TIMEOUT", "10"))
+
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s"
 )
+
+
+def send_sms(message):
+    payload = {
+        "textMessage": {
+            "text": message
+        },
+        "phoneNumbers": [
+            SMS_RECIPIENT
+        ]
+    }
+
+    credentials = (
+        f"{GATEWAY_USERNAME}:{GATEWAY_PASSWORD}"
+    ).encode("utf-8")
+
+    auth = base64.b64encode(credentials).decode("ascii")
+
+    request = Request(
+        GATEWAY_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={
+            "Authorization": f"Basic {auth}",
+            "Content-Type": "application/json",
+        },
+    )
+
+    try:
+        with urlopen(request, timeout=HTTP_TIMEOUT) as response:
+            body = response.read().decode("utf-8")
+
+            result = json.loads(body)
+
+            logging.info(
+                "Android SMS Gateway accepted message: "
+                "http=%s id=%s state=%s",
+                response.status,
+                result.get("id", "unknown"),
+                result.get("state", "unknown"),
+            )
+
+            for recipient in result.get("recipients", []):
+                logging.info(
+                    "SMS recipient=%s state=%s",
+                    recipient.get("phoneNumber", "unknown"),
+                    recipient.get("state", "unknown"),
+                )
+
+            return True
+
+    except HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+
+        logging.error(
+            "Android SMS Gateway HTTP error: status=%s body=%s",
+            exc.code,
+            body,
+        )
+
+    except URLError as exc:
+        logging.error(
+            "Android SMS Gateway connection error: %s",
+            exc,
+        )
+
+    except Exception:
+        logging.exception(
+            "Unexpected Android SMS Gateway error"
+        )
+
+    return False
 
 
 class AlertHandler(BaseHTTPRequestHandler):
@@ -37,10 +124,13 @@ class AlertHandler(BaseHTTPRequestHandler):
             return
 
         try:
-            content_length = int(self.headers.get("Content-Length", "0"))
-            body = self.rfile.read(content_length)
+            content_length = int(
+                self.headers.get("Content-Length", "0")
+            )
 
-            payload = json.loads(body)
+            payload = json.loads(
+                self.rfile.read(content_length)
+            )
 
             status = payload.get("status", "unknown")
             alerts = payload.get("alerts", [])
@@ -55,25 +145,59 @@ class AlertHandler(BaseHTTPRequestHandler):
                 labels = alert.get("labels", {})
                 annotations = alert.get("annotations", {})
 
+                alertname = labels.get("alertname", "unknown")
+                host = labels.get("host", "unknown")
+                severity = labels.get("severity", "unknown")
+                summary = annotations.get("summary", "")
+
                 logging.info(
-                    "ALERT status=%s alertname=%s host=%s severity=%s summary=%s",
+                    "ALERT status=%s alertname=%s host=%s "
+                    "severity=%s summary=%s",
                     status,
-                    labels.get("alertname", "unknown"),
-                    labels.get("host", "unknown"),
-                    labels.get("severity", "unknown"),
-                    annotations.get("summary", ""),
+                    alertname,
+                    host,
+                    severity,
+                    summary,
                 )
 
+                should_send = (
+                    severity == "critical"
+                    and (
+                        (status == "firing" and SEND_FIRING)
+                        or
+                        (status == "resolved" and SEND_RESOLVED)
+                    )
+                )
+
+                if should_send:
+                    sms_message = (
+                        f"{status.upper()} "
+                        f"{severity.upper()} "
+                        f"{host} "
+                        f"{alertname} - "
+                        f"{summary}"
+                    )
+
+                    # Ograniczamy długość wiadomości.
+                    sms_message = sms_message[:150]
+
+                    send_sms(sms_message)
+
             self.send_response(200)
-            self.send_header("Content-Type", "application/json")
+            self.send_header(
+                "Content-Type",
+                "application/json"
+            )
             self.end_headers()
 
             self.wfile.write(
-                json.dumps({"status": "ok"}).encode()
+                json.dumps({"status": "ok"}).encode("utf-8")
             )
 
         except Exception:
-            logging.exception("Failed processing Alertmanager webhook")
+            logging.exception(
+                "Failed processing Alertmanager webhook"
+            )
 
             self.send_response(500)
             self.end_headers()

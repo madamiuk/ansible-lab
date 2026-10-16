@@ -27,6 +27,24 @@
     group: "{{ sms_webhook_group }}"
     mode: "0755"
 
+- name: Utwórz katalog konfiguracji sms-webhook
+  ansible.builtin.file:
+    path: "{{ sms_webhook_config_dir }}"
+    state: directory
+    owner: root
+    group: "{{ sms_webhook_group }}"
+    mode: "0750"
+
+- name: Wdróż sekrety Android SMS Gateway
+  ansible.builtin.template:
+    src: sms-webhook.env.j2
+    dest: "{{ sms_webhook_env_file }}"
+    owner: root
+    group: "{{ sms_webhook_group }}"
+    mode: "0640"
+  no_log: true
+  notify: Restart sms webhook
+
 - name: Wdróż aplikację sms-webhook
   ansible.builtin.template:
     src: sms_webhook.py.j2

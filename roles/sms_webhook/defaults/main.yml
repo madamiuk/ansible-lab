@@ -7,3 +7,13 @@ sms_webhook_port: 9087
 
 sms_webhook_install_dir: /opt/sms-webhook
 sms_webhook_script: "{{ sms_webhook_install_dir }}/sms_webhook.py"
+
+android_sms_gateway_url: "http://192.168.0.12:8080/message"
+android_sms_gateway_username: "sms"
+
+sms_webhook_send_firing: true
+sms_webhook_send_resolved: true
+sms_webhook_http_timeout: 10
+
+sms_webhook_config_dir: /etc/sms-webhook
+sms_webhook_env_file: "{{ sms_webhook_config_dir }}/sms-webhook.env"
