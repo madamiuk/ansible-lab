@@ -1,0 +1,6 @@
+---
+- name: Restart sms webhook
+  ansible.builtin.systemd:
+    name: sms-webhook
+    state: restarted
+    daemon_reload: true

@@ -1,0 +1,20 @@
+[Unit]
+Description=Alertmanager SMS Webhook
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ sms_webhook_user }}
+Group={{ sms_webhook_group }}
+
+ExecStart=/usr/bin/python3 {{ sms_webhook_script }}
+
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

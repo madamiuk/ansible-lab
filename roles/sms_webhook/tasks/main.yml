@@ -1,0 +1,56 @@
+---
+- name: Upewnij się że Python3 jest zainstalowany
+  ansible.builtin.package:
+    name: python3
+    state: present
+
+- name: Utwórz grupę sms-webhook
+  ansible.builtin.group:
+    name: "{{ sms_webhook_group }}"
+    system: true
+    state: present
+
+- name: Utwórz użytkownika sms-webhook
+  ansible.builtin.user:
+    name: "{{ sms_webhook_user }}"
+    group: "{{ sms_webhook_group }}"
+    system: true
+    create_home: false
+    shell: /sbin/nologin
+    state: present
+
+- name: Utwórz katalog aplikacji sms-webhook
+  ansible.builtin.file:
+    path: "{{ sms_webhook_install_dir }}"
+    state: directory
+    owner: root
+    group: "{{ sms_webhook_group }}"
+    mode: "0755"
+
+- name: Wdróż aplikację sms-webhook
+  ansible.builtin.template:
+    src: sms_webhook.py.j2
+    dest: "{{ sms_webhook_script }}"
+    owner: root
+    group: "{{ sms_webhook_group }}"
+    mode: "0755"
+  notify: Restart sms webhook
+
+- name: Wdróż unit systemd sms-webhook
+  ansible.builtin.template:
+    src: sms-webhook.service.j2
+    dest: /etc/systemd/system/sms-webhook.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart sms webhook
+
+- name: Przeładuj systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Uruchom i włącz sms-webhook
+  ansible.builtin.systemd:
+    name: sms-webhook
+    state: started
+    enabled: true

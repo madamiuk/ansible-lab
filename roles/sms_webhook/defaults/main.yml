@@ -1,0 +1,9 @@
+---
+sms_webhook_user: sms-webhook
+sms_webhook_group: sms-webhook
+
+sms_webhook_bind_address: "127.0.0.1"
+sms_webhook_port: 9087
+
+sms_webhook_install_dir: /opt/sms-webhook
+sms_webhook_script: "{{ sms_webhook_install_dir }}/sms_webhook.py"

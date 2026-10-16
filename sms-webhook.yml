@@ -1,0 +1,7 @@
+---
+- name: Instalacja lokalnego webhooka SMS
+  hosts: monitoring
+  become: true
+
+  roles:
+    - sms_webhook

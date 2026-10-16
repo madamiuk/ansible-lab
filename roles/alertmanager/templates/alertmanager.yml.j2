@@ -55,3 +55,6 @@ receivers:
   - name: "warning"
 
   - name: "critical"
+    webhook_configs:
+      - url: "http://127.0.0.1:9087/alert"
+        send_resolved: true
