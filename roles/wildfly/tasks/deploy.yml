@@ -6,6 +6,18 @@
     owner: "{{ wildfly_user }}"
     group: "{{ wildfly_group }}"
     mode: '0644'
+  register: wildfly_war_deploy
   when: not ansible_check_mode
+  tags:
+    - deploy
+
+- name: Poczekaj na poprawne wdrożenie aplikacji
+  ansible.builtin.wait_for:
+    path: "{{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.war.deployed"
+    state: present
+    timeout: 60
+  when:
+    - not ansible_check_mode
+    - wildfly_war_deploy is changed
   tags:
     - deploy
