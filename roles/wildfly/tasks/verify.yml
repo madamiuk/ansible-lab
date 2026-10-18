@@ -1,4 +1,65 @@
 ---
+- name: Sprawdź status usługi WildFly
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-active
+      - wildfly.service
+  register: wildfly_service_status
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+  tags:
+    - verify
+
+- name: Potwierdź działanie usługi WildFly
+  ansible.builtin.assert:
+    that:
+      - wildfly_service_status.rc == 0
+      - wildfly_service_status.stdout == "active"
+    fail_msg: "Usługa WildFly nie działa poprawnie."
+    success_msg: "Usługa WildFly działa poprawnie."
+  when: not ansible_check_mode
+  tags:
+    - verify
+
+- name: Sprawdź obecność pliku WAR
+  ansible.builtin.stat:
+    path: "{{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.war"
+  register: wildfly_war_file
+  when: not ansible_check_mode
+  tags:
+    - verify
+
+- name: Potwierdź obecność pliku WAR
+  ansible.builtin.assert:
+    that:
+      - wildfly_war_file.stat.exists
+      - wildfly_war_file.stat.isreg
+    fail_msg: "Brak pliku {{ wildfly_app_name }}.war w katalogu deployments."
+    success_msg: "Plik {{ wildfly_app_name }}.war znajduje się w katalogu deployments."
+  when: not ansible_check_mode
+  tags:
+    - verify
+
+- name: Sprawdź marker poprawnego deploymentu
+  ansible.builtin.stat:
+    path: "{{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.war.deployed"
+  register: wildfly_deployed_marker
+  when: not ansible_check_mode
+  tags:
+    - verify
+
+- name: Potwierdź poprawny deployment aplikacji
+  ansible.builtin.assert:
+    that:
+      - wildfly_deployed_marker.stat.exists
+    fail_msg: "WildFly nie utworzył markera {{ wildfly_app_name }}.war.deployed."
+    success_msg: "Aplikacja {{ wildfly_app_name }} została poprawnie wdrożona."
+  when: not ansible_check_mode
+  tags:
+    - verify
+
 - name: Zweryfikuj datasource PostgreSQL
   when: not ansible_check_mode
   block:
@@ -20,7 +81,7 @@
         that:
           - '"\"outcome\" => \"success\"" in datasource_test.stdout'
           - '"\"result\" => [true]" in datasource_test.stdout'
-        success_msg: "Datasource {{ wildfly_datasource_name }} działa poprawnie"
+        success_msg: "Datasource {{ wildfly_datasource_name }} działa poprawnie."
 
   rescue:
     - name: Wyświetl błąd datasource
@@ -38,4 +99,26 @@
 
   tags:
     - datasource
+    - verify
+
+- name: Sprawdź endpoint aplikacji WildFly
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:8080/hello-wildfly/api/hello/data"
+    method: GET
+    return_content: true
+    status_code: 200
+  register: wildfly_app_health
+  changed_when: false
+  when: not ansible_check_mode
+  tags:
+    - verify
+
+- name: Potwierdź działanie endpointu aplikacji
+  ansible.builtin.assert:
+    that:
+      - wildfly_app_health.status == 200
+    fail_msg: "Endpoint aplikacji hello-wildfly nie odpowiada poprawnie."
+    success_msg: "Endpoint aplikacji hello-wildfly odpowiada poprawnie HTTP 200."
+  when: not ansible_check_mode
+  tags:
     - verify

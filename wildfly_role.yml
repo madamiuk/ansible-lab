@@ -25,33 +25,11 @@
     - wildfly
 
   post_tasks:
-    - name: Sprawdź endpoint aplikacji WildFly
-      ansible.builtin.uri:
-        url: "http://127.0.0.1:8080/hello-wildfly/api/hello/data"
-        method: GET
-        return_content: true
-        status_code: 200
-      register: wildfly_app_health
-      changed_when: false
-      when: not ansible_check_mode
-      tags:
-        - health
-
-    - name: Potwierdź działanie aplikacji
-      ansible.builtin.assert:
-        that:
-          - wildfly_app_health.status == 200
-        fail_msg: "Aplikacja hello-wildfly nie odpowiada poprawnie."
-        success_msg: "Aplikacja hello-wildfly działa poprawnie."
-      when: not ansible_check_mode
-      tags:
-        - health
-
     - name: Podsumuj zakończenie wdrożenia
       ansible.builtin.debug:
         msg: "Wdrożenie WildFly zakończone dla grupy wildfly."
 #      run_once: true
-      when: inventory_hostname == ansible_play_hosts_all[0]  
+      when: inventory_hostname == ansible_play_hosts_all[0]
       tags:
         - health
 
