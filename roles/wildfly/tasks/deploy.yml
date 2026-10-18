@@ -65,12 +65,21 @@
       retries: 12
       delay: 5
 
+    - name: Odczytaj szczegóły błędu deploymentu
+      ansible.builtin.slurp:
+        src: "{{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.war.failed"
+      register: wildfly_failed_details
+      when: wildfly_deploy_result.rc == 2
+
     - name: Zatrzymaj playbook przy błędzie deploymentu
       ansible.builtin.fail:
         msg: >-
-          Deployment {{ wildfly_app_name }} zakończył się błędem.
-          Sprawdź plik {{ wildfly_app_name }}.war.failed
-          oraz logi WildFly.
+          Deployment {{ wildfly_app_name }} zakończył się błędem:
+          {{
+            wildfly_failed_details.content
+            | b64decode
+            | trim
+          }}
       when: wildfly_deploy_result.rc == 2
 
     - name: Potwierdź poprawne wdrożenie aplikacji
