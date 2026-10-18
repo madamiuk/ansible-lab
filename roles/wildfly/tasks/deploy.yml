@@ -1,4 +1,20 @@
 ---
+- name: Sprawdź aktualny marker .deployed
+  ansible.builtin.stat:
+    path: "{{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.war.deployed"
+  register: wildfly_deployed_before
+  when: not ansible_check_mode
+  tags:
+    - deploy
+
+- name: Sprawdź aktualny marker .failed
+  ansible.builtin.stat:
+    path: "{{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.war.failed"
+  register: wildfly_failed_before
+  when: not ansible_check_mode
+  tags:
+    - deploy
+
 - name: Wdróż aplikację hello-wildfly
   ansible.builtin.copy:
     src: "{{ wildfly_war_source }}"
@@ -11,13 +27,61 @@
   tags:
     - deploy
 
-- name: Poczekaj na poprawne wdrożenie aplikacji
-  ansible.builtin.wait_for:
-    path: "{{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.war.deployed"
-    state: present
-    timeout: 60
+- name: Poczekaj na wynik wdrożenia aplikacji
   when:
     - not ansible_check_mode
     - wildfly_war_deploy is changed
+  block:
+    - name: Czekaj na zmianę markera deploymentu
+      ansible.builtin.shell: |
+        DEPLOYED="{{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.war.deployed"
+        FAILED="{{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.war.failed"
+
+        if [ -f "$FAILED" ]; then
+          FAILED_MTIME="$(stat -c %Y "$FAILED")"
+
+          if [ "{{ wildfly_failed_before.stat.exists | default(false) }}" = "False" ] || \
+             [ "$FAILED_MTIME" != "{{ wildfly_failed_before.stat.mtime | default(0) | int }}" ]; then
+            exit 2
+          fi
+        fi
+
+        if [ -f "$DEPLOYED" ]; then
+          DEPLOYED_MTIME="$(stat -c %Y "$DEPLOYED")"
+
+          if [ "{{ wildfly_deployed_before.stat.exists | default(false) }}" = "False" ] || \
+             [ "$DEPLOYED_MTIME" != "{{ wildfly_deployed_before.stat.mtime | default(0) | int }}" ]; then
+            exit 0
+          fi
+        fi
+
+        exit 1
+      args:
+        executable: /bin/bash
+      register: wildfly_deploy_result
+      changed_when: false
+      failed_when: false
+      until: wildfly_deploy_result.rc in [0, 2]
+      retries: 12
+      delay: 5
+
+    - name: Zatrzymaj playbook przy błędzie deploymentu
+      ansible.builtin.fail:
+        msg: >-
+          Deployment {{ wildfly_app_name }} zakończył się błędem.
+          Sprawdź plik {{ wildfly_app_name }}.war.failed
+          oraz logi WildFly.
+      when: wildfly_deploy_result.rc == 2
+
+    - name: Potwierdź poprawne wdrożenie aplikacji
+      ansible.builtin.assert:
+        that:
+          - wildfly_deploy_result.rc == 0
+        fail_msg: >-
+          WildFly nie potwierdził nowego deploymentu
+          {{ wildfly_app_name }} w ciągu 60 sekund.
+        success_msg: >-
+          Aplikacja {{ wildfly_app_name }} została poprawnie wdrożona.
+
   tags:
     - deploy
