@@ -58,6 +58,20 @@ jobs:
           test -f applications/hello-wildfly/target/hello-wildfly.war
           ls -lh applications/hello-wildfly/target/hello-wildfly.war
 
+      - name: Diagnose network to rhel01
+        run: |
+          echo "=== HOST ==="
+          hostname
+
+          echo "=== ROUTE ==="
+          route -n get 192.168.64.16
+
+          echo "=== PING ==="
+          ping -c 3 192.168.64.16
+
+          echo "=== SSH PORT ==="
+          nc -zv 192.168.64.16 22
+
       - name: Test Ansible connection
         env:
           ANSIBLE_BECOME_PASS: ${{ secrets.ANSIBLE_BECOME_PASS }}
