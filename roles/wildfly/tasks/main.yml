@@ -24,6 +24,12 @@
   tags:
     - datasource
 
+- name: Pre-flight datasource przed deploymentem
+  ansible.builtin.import_tasks: preflight.yml
+  tags:
+    - deploy
+    - datasource
+
 - name: Zadania deploymentu aplikacji
   ansible.builtin.import_tasks: deploy.yml
   tags:

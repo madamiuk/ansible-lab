@@ -1,0 +1,28 @@
+---
+- name: Sprawdź połączenie datasource przed deploymentem
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - "{{ wildfly_user }}"
+      - --
+      - "{{ wildfly_home }}/bin/jboss-cli.sh"
+      - --connect
+      - "--command=/subsystem=datasources/data-source={{ wildfly_datasource_name }}:test-connection-in-pool"
+  register: wildfly_preflight_datasource
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Potwierdź gotowość datasource przed deploymentem
+  ansible.builtin.assert:
+    that:
+      - wildfly_preflight_datasource.rc == 0
+      - '"\"outcome\" => \"success\"" in wildfly_preflight_datasource.stdout'
+      - '"\"result\" => [true]" in wildfly_preflight_datasource.stdout'
+    fail_msg: >-
+      Datasource {{ wildfly_datasource_name }} nie jest gotowy do deploymentu
+      aplikacji na hoście {{ inventory_hostname }}.
+    success_msg: >-
+      Datasource {{ wildfly_datasource_name }} jest gotowy do deploymentu.
+  when: not ansible_check_mode
