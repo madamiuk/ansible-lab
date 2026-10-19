@@ -44,6 +44,9 @@
     connect_timeout: 3
     timeout: 5
     state: started
+    msg: >-
+      PostgreSQL {{ wildfly_datasource_host }}:{{ wildfly_datasource_port }}
+      jest nieosiągalny z hosta {{ inventory_hostname }}.
   changed_when: false
   when: not ansible_check_mode
   tags:
