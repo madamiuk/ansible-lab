@@ -1,4 +1,26 @@
 ---
+- name: Sprawdź artefakt WAR na kontrolerze
+  ansible.builtin.stat:
+    path: "{{ wildfly_war_source }}"
+  register: wildfly_war_artifact
+  delegate_to: localhost
+  become: false
+  run_once: true
+  changed_when: false
+
+- name: Potwierdź poprawność artefaktu WAR
+  ansible.builtin.assert:
+    that:
+      - wildfly_war_artifact.stat.exists
+      - wildfly_war_artifact.stat.isreg
+      - wildfly_war_artifact.stat.size | int > 0
+    fail_msg: >-
+      Artefakt WAR {{ wildfly_war_source }} nie istnieje,
+      nie jest plikiem lub ma rozmiar 0 bajtów.
+    success_msg: >-
+      Artefakt WAR {{ wildfly_war_source }} jest gotowy do deploymentu.
+  run_once: true
+
 - name: Sprawdź połączenie datasource przed deploymentem
   ansible.builtin.command:
     argv:
