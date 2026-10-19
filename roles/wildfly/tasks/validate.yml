@@ -36,3 +36,16 @@
       - wildfly_datasource_jndi_name is match('^java:(/|jboss/)')
     fail_msg: "Parametry datasource mają niepoprawne wartości."
     success_msg: "Parametry datasource mają poprawne wartości."
+
+- name: Sprawdź dostępność PostgreSQL z hosta WildFly
+  ansible.builtin.wait_for:
+    host: "{{ wildfly_datasource_host }}"
+    port: "{{ wildfly_datasource_port }}"
+    connect_timeout: 3
+    timeout: 5
+    state: started
+  changed_when: false
+  when: not ansible_check_mode
+  tags:
+    - validate
+    - datasource
