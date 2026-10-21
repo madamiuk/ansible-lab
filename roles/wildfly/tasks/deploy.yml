@@ -28,6 +28,31 @@
   tags:
     - deploy
 
+- name: Oblicz SHA-256 WAR po stronie hosta WildFly
+  ansible.builtin.stat:
+    path: "{{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.war"
+    checksum_algorithm: sha256
+    get_checksum: true
+  register: wildfly_remote_war
+  when: not ansible_check_mode
+  tags:
+    - deploy
+
+- name: Potwierdź zgodność wdrożonego WAR z artefaktem
+  ansible.builtin.assert:
+    that:
+      - wildfly_remote_war.stat.exists
+      - wildfly_remote_war.stat.checksum == wildfly_war_artifact.stat.checksum
+    fail_msg: >-
+      SHA-256 WAR na hoście {{ inventory_hostname }}
+      nie zgadza się z artefaktem źródłowym.
+    success_msg: >-
+      SHA-256 WAR na hoście {{ inventory_hostname }}:
+      {{ wildfly_remote_war.stat.checksum }}
+  when: not ansible_check_mode
+  tags:
+    - deploy
+
 - name: Poczekaj na wynik wdrożenia aplikacji
   when:
     - not ansible_check_mode
@@ -195,5 +220,16 @@
       loop_control:
         label: "{{ item.path | basename }}"
 
+  tags:
+    - deploy
+
+- name: Zapisz SHA-256 poprawnie wdrożonego WAR
+  ansible.builtin.copy:
+    content: "{{ wildfly_remote_war.stat.checksum }}  {{ wildfly_app_name }}.war\n"
+    dest: "{{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.war.sha256"
+    owner: "{{ wildfly_user }}"
+    group: "{{ wildfly_group }}"
+    mode: '0644'
+  when: not ansible_check_mode
   tags:
     - deploy

@@ -2,6 +2,8 @@
 - name: Sprawdź artefakt WAR na kontrolerze
   ansible.builtin.stat:
     path: "{{ wildfly_war_source }}"
+    checksum_algorithm: sha256
+    get_checksum: true
   register: wildfly_war_artifact
   delegate_to: localhost
   become: false
@@ -19,6 +21,14 @@
       nie jest plikiem lub ma rozmiar 0 bajtów.
     success_msg: >-
       Artefakt WAR {{ wildfly_war_source }} jest gotowy do deploymentu.
+  run_once: true
+
+- name: Wyświetl identyfikator artefaktu WAR
+  ansible.builtin.debug:
+    msg: >-
+      Artefakt {{ wildfly_war_source }}
+      size={{ wildfly_war_artifact.stat.size }} B,
+      sha256={{ wildfly_war_artifact.stat.checksum }}
   run_once: true
 
 - name: Sprawdź strukturę archiwum WAR
