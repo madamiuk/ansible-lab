@@ -38,15 +38,7 @@ jobs:
           cache: maven
 
       - name: Generate build metadata
-        run: |
-          mkdir -p applications/hello-wildfly/src/main/resources
-
-          cat > applications/hello-wildfly/src/main/resources/build-info.properties <<EOF
-          git.commit=${{ github.sha }}
-          git.ref=${{ github.ref_name }}
-          github.run.id=${{ github.run_id }}
-          github.run.number=${{ github.run_number }}
-          EOF
+        run: applications/hello-wildfly/generate-build-info.sh
 
       - name: Run tests and build
         run: mvn -B -f applications/hello-wildfly/pom.xml clean verify

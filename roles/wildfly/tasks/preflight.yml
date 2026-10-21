@@ -68,6 +68,40 @@
       Artefakt WAR {{ wildfly_war_source }} jest poprawnym archiwum WAR.
   run_once: true
 
+- name: Odczytaj metadane buildu z WAR
+  ansible.builtin.command:
+    argv:
+      - unzip
+      - -p
+      - "{{ wildfly_war_source }}"
+      - WEB-INF/classes/build-info.properties
+  register: wildfly_build_info
+  delegate_to: localhost
+  become: false
+  run_once: true
+  changed_when: false
+  failed_when: false
+
+- name: Potwierdź obecność metadanych buildu
+  ansible.builtin.assert:
+    that:
+      - wildfly_build_info.rc == 0
+      - '"git.commit=" in wildfly_build_info.stdout'
+      - '"git.ref=" in wildfly_build_info.stdout'
+      - '"github.run.id=" in wildfly_build_info.stdout'
+      - '"github.run.number=" in wildfly_build_info.stdout'
+    fail_msg: >-
+      Artefakt WAR {{ wildfly_war_source }} nie zawiera poprawnych
+      metadanych buildu w WEB-INF/classes/build-info.properties.
+    success_msg: >-
+      Artefakt WAR zawiera poprawne metadane buildu.
+  run_once: true
+
+- name: Wyświetl metadane buildu
+  ansible.builtin.debug:
+    msg: "{{ wildfly_build_info.stdout_lines }}"
+  run_once: true
+
 - name: Sprawdź połączenie datasource przed deploymentem
   ansible.builtin.command:
     argv:
