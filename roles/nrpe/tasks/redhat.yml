@@ -60,6 +60,35 @@
     line: "allowed_hosts=127.0.0.1,::1,{{ nrpe_monitoring_server }}"
   notify: Restart NRPE RedHat
 
+- name: Sprawdź czy firewalld działa
+  ansible.builtin.command:
+    cmd: firewall-cmd --state
+  register: nrpe_firewalld
+  changed_when: false
+  failed_when: false
+
+- name: Sprawdź regułę firewalld dla NRPE
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --permanent
+      - "--query-rich-rule=rule family=ipv4 source address={{ nrpe_monitoring_server }} port port=5666 protocol=tcp accept"
+  register: nrpe_firewall_rule
+  changed_when: false
+  failed_when: false
+  when: nrpe_firewalld.rc == 0
+
+- name: Zezwól serwerowi Nagios na dostęp do NRPE
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --permanent
+      - "--add-rich-rule=rule family=ipv4 source address={{ nrpe_monitoring_server }} port port=5666 protocol=tcp accept"
+  when:
+    - nrpe_firewalld.rc == 0
+    - nrpe_firewall_rule.rc != 0
+  notify: Reload firewalld
+
 - name: Skonfiguruj lokalny check WildFly
   ansible.builtin.copy:
     dest: /etc/nrpe.d/wildfly.cfg

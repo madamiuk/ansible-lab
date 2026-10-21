@@ -8,3 +8,7 @@
   ansible.builtin.service:
     name: nrpe
     state: restarted
+
+- name: Reload firewalld
+  ansible.builtin.command:
+    cmd: firewall-cmd --reload
