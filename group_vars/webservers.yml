@@ -1,4 +1,0 @@
----
-postgresql_db_name: ansible_lab
-postgresql_db_user: ansible_app
-postgresql_db_password: "{{ vault_db_password }}"

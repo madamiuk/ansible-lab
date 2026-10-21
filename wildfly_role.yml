@@ -22,6 +22,7 @@
         - always
 
   roles:
+    - java
     - wildfly
 
   post_tasks:

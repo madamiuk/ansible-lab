@@ -8,3 +8,7 @@ wildfly_datasource_port: 5432
 wildfly_datasource_min_pool_size: 1
 wildfly_datasource_max_pool_size: 5
 wildfly_datasource_jta: true
+
+postgresql_db_name: ansible_lab
+postgresql_db_user: ansible_app
+postgresql_db_password: "{{ vault_db_password }}"
