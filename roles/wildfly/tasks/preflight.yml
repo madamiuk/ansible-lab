@@ -34,6 +34,20 @@
   changed_when: false
   failed_when: false
 
+- name: Potwierdź wymaganą zawartość WAR
+  ansible.builtin.assert:
+    that:
+      - '"WEB-INF/" in wildfly_war_archive_check.stdout'
+      - '"WEB-INF/classes/META-INF/persistence.xml" in wildfly_war_archive_check.stdout'
+      - '"WEB-INF/classes/pl/ansible/lab/HelloResource.class" in wildfly_war_archive_check.stdout'
+    fail_msg: >-
+      Artefakt WAR {{ wildfly_war_source }} nie zawiera wymaganej
+      struktury lub plików aplikacji hello-wildfly.
+    success_msg: >-
+      Artefakt WAR {{ wildfly_war_source }} zawiera wymaganą
+      strukturę aplikacji hello-wildfly.
+  run_once: true
+
 - name: Potwierdź poprawność archiwum WAR
   ansible.builtin.assert:
     that:
