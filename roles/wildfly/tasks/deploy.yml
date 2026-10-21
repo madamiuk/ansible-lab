@@ -233,3 +233,14 @@
   when: not ansible_check_mode
   tags:
     - deploy
+
+- name: Zapisz metadane poprawnie wdrożonego buildu
+  ansible.builtin.copy:
+    content: "{{ wildfly_build_info.stdout }}\n"
+    dest: "{{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.build-info.properties"
+    owner: "{{ wildfly_user }}"
+    group: "{{ wildfly_group }}"
+    mode: '0644'
+  when: not ansible_check_mode
+  tags:
+    - deploy

@@ -169,3 +169,15 @@
     success_msg: >-
       Integralność WAR {{ wildfly_app_name }} potwierdzona.
       SHA-256={{ wildfly_verified_war.stat.checksum }}
+
+- name: Odczytaj metadane wdrożonego buildu
+  ansible.builtin.command:
+    argv:
+      - cat
+      - "{{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.build-info.properties"
+  register: wildfly_deployed_build_info
+  changed_when: false
+
+- name: Wyświetl metadane wdrożonego buildu
+  ansible.builtin.debug:
+    msg: "{{ wildfly_deployed_build_info.stdout_lines }}"
