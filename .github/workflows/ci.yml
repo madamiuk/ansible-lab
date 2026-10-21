@@ -9,6 +9,7 @@ on:
       - "roles/wildfly/**"
       - "group_vars/wildfly.yml"
       - "wildfly_role.yml"
+      - ".github/workflows/ci.yml"
 
   pull_request:
     branches:
@@ -18,6 +19,7 @@ on:
       - "roles/wildfly/**"
       - "group_vars/wildfly.yml"
       - "wildfly_role.yml"
+      - ".github/workflows/ci.yml"
 
 jobs:
   test:
@@ -34,6 +36,17 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
+
+      - name: Generate build metadata
+        run: |
+          mkdir -p applications/hello-wildfly/src/main/resources
+
+          cat > applications/hello-wildfly/src/main/resources/build-info.properties <<EOF
+          git.commit=${{ github.sha }}
+          git.ref=${{ github.ref_name }}
+          github.run.id=${{ github.run_id }}
+          github.run.number=${{ github.run_number }}
+          EOF
 
       - name: Run tests and build
         run: mvn -B -f applications/hello-wildfly/pom.xml clean verify
