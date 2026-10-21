@@ -122,3 +122,50 @@
   when: not ansible_check_mode
   tags:
     - verify
+
+- name: Sprawdź plik SHA-256 wdrożonego WAR
+  ansible.builtin.stat:
+    path: "{{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.war.sha256"
+  register: wildfly_checksum_file
+  changed_when: false
+
+- name: Potwierdź obecność pliku SHA-256
+  ansible.builtin.assert:
+    that:
+      - wildfly_checksum_file.stat.exists
+      - wildfly_checksum_file.stat.isreg
+    fail_msg: >-
+      Brak pliku checksumy
+      {{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.war.sha256
+      na hoście {{ inventory_hostname }}.
+    success_msg: >-
+      Plik checksumy WAR jest dostępny.
+
+- name: Oblicz SHA-256 aktualnie wdrożonego WAR
+  ansible.builtin.stat:
+    path: "{{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.war"
+    checksum_algorithm: sha256
+    get_checksum: true
+  register: wildfly_verified_war
+  changed_when: false
+
+- name: Odczytaj zapisany SHA-256 wdrożonego WAR
+  ansible.builtin.command:
+    argv:
+      - awk
+      - '{print $1}'
+      - "{{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.war.sha256"
+  register: wildfly_saved_checksum
+  changed_when: false
+
+- name: Potwierdź integralność wdrożonego WAR
+  ansible.builtin.assert:
+    that:
+      - wildfly_verified_war.stat.exists
+      - wildfly_saved_checksum.stdout == wildfly_verified_war.stat.checksum
+    fail_msg: >-
+      Integralność WAR {{ wildfly_app_name }} na hoście
+      {{ inventory_hostname }} nie została potwierdzona.
+    success_msg: >-
+      Integralność WAR {{ wildfly_app_name }} potwierdzona.
+      SHA-256={{ wildfly_verified_war.stat.checksum }}
