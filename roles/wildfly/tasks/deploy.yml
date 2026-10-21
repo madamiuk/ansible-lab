@@ -22,6 +22,7 @@
     owner: "{{ wildfly_user }}"
     group: "{{ wildfly_group }}"
     mode: '0644'
+    backup: true
   register: wildfly_war_deploy
   when: not ansible_check_mode
   tags:
@@ -71,16 +72,96 @@
       register: wildfly_failed_details
       when: wildfly_deploy_result.rc == 2
 
-    - name: Zatrzymaj playbook przy błędzie deploymentu
+    - name: Przywróć poprzednią wersję WAR po błędzie deploymentu
+      ansible.builtin.copy:
+        src: "{{ wildfly_war_deploy.backup_file }}"
+        dest: "{{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.war"
+        remote_src: true
+        owner: "{{ wildfly_user }}"
+        group: "{{ wildfly_group }}"
+        mode: '0644'
+      when:
+        - wildfly_deploy_result.rc == 2
+        - wildfly_war_deploy.backup_file is defined
+      register: wildfly_rollback_restore
+
+    - name: Usuń marker nieudanego deploymentu przed rollbackiem
+      ansible.builtin.file:
+        path: "{{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.war.failed"
+        state: absent
+      when:
+        - wildfly_deploy_result.rc == 2
+        - wildfly_war_deploy.backup_file is defined
+
+    - name: Wymuś deployment przywróconej wersji
+      ansible.builtin.file:
+        path: "{{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.war.dodeploy"
+        state: touch
+        owner: "{{ wildfly_user }}"
+        group: "{{ wildfly_group }}"
+        mode: '0644'
+      when:
+        - wildfly_deploy_result.rc == 2
+        - wildfly_war_deploy.backup_file is defined
+
+    - name: Poczekaj na poprawny deployment po rollbacku
+      ansible.builtin.wait_for:
+        path: "{{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.war.deployed"
+        state: present
+        timeout: 60
+      when:
+        - wildfly_deploy_result.rc == 2
+        - wildfly_war_deploy.backup_file is defined
+
+    - name: Sprawdź marker błędu po rollbacku
+      ansible.builtin.stat:
+        path: "{{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.war.failed"
+      register: wildfly_rollback_failed_marker
+      when:
+        - wildfly_deploy_result.rc == 2
+        - wildfly_war_deploy.backup_file is defined
+
+    - name: Potwierdź poprawny rollback
+      ansible.builtin.assert:
+        that:
+          - not wildfly_rollback_failed_marker.stat.exists
+        success_msg: >-
+          Rollback aplikacji {{ wildfly_app_name }} zakończył się powodzeniem.
+        fail_msg: >-
+          Rollback aplikacji {{ wildfly_app_name }} również zakończył się błędem.
+      when:
+        - wildfly_deploy_result.rc == 2
+        - wildfly_war_deploy.backup_file is defined
+
+    - name: Zatrzymaj playbook po wykonaniu rollbacku
       ansible.builtin.fail:
         msg: >-
-          Deployment {{ wildfly_app_name }} zakończył się błędem:
+          Deployment {{ wildfly_app_name }} zakończył się błędem.
+          Poprzednia wersja aplikacji została przywrócona.
+          Błąd deploymentu:
           {{
             wildfly_failed_details.content
             | b64decode
             | trim
           }}
-      when: wildfly_deploy_result.rc == 2
+      when:
+        - wildfly_deploy_result.rc == 2
+        - wildfly_war_deploy.backup_file is defined
+
+    - name: Zatrzymaj playbook przy błędzie bez dostępnego backupu
+      ansible.builtin.fail:
+        msg: >-
+          Deployment {{ wildfly_app_name }} zakończył się błędem,
+          a poprzednia wersja WAR nie jest dostępna do rollbacku.
+          Błąd deploymentu:
+          {{
+            wildfly_failed_details.content
+            | b64decode
+            | trim
+          }}
+      when:
+        - wildfly_deploy_result.rc == 2
+        - wildfly_war_deploy.backup_file is not defined
 
     - name: Potwierdź poprawne wdrożenie aplikacji
       ansible.builtin.assert:
