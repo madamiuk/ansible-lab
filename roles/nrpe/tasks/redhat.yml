@@ -1,4 +1,46 @@
 ---
+- name: Ustal identyfikator repozytorium CodeReady Builder
+  ansible.builtin.set_fact:
+    nrpe_crb_repo_id: >-
+      codeready-builder-for-rhel-{{
+        ansible_facts['distribution_major_version']
+      }}-{{ ansible_facts['architecture'] }}-rpms
+  when:
+    - ansible_facts['distribution'] == 'RedHat'
+    - ansible_facts['distribution_major_version'] | int >= 9
+
+- name: Sprawdź aktywne repozytoria RHEL
+  ansible.builtin.command:
+    argv:
+      - subscription-manager
+      - repos
+      - --list-enabled
+  register: nrpe_enabled_repositories
+  changed_when: false
+  when:
+    - ansible_facts['distribution'] == 'RedHat'
+    - ansible_facts['distribution_major_version'] | int >= 9
+
+- name: Włącz CodeReady Builder na RHEL
+  ansible.builtin.command:
+    argv:
+      - subscription-manager
+      - repos
+      - "--enable={{ nrpe_crb_repo_id }}"
+  when:
+    - ansible_facts['distribution'] == 'RedHat'
+    - ansible_facts['distribution_major_version'] | int >= 9
+    - nrpe_crb_repo_id not in nrpe_enabled_repositories.stdout
+
+- name: Zainstaluj repozytorium EPEL
+  ansible.builtin.dnf:
+    name: >-
+      https://dl.fedoraproject.org/pub/epel/epel-release-latest-{{
+        ansible_facts['distribution_major_version']
+      }}.noarch.rpm
+    state: present
+    disable_gpg_check: true
+
 - name: Zainstaluj NRPE i pluginy na RedHat
   ansible.builtin.dnf:
     name:
@@ -38,6 +80,7 @@
       command[check_load]=/usr/lib64/nagios/plugins/check_load -w 5,4,3 -c 10,8,6
       command[check_disk_root]=/usr/lib64/nagios/plugins/check_disk -w 20% -c 10% -p /
       command[check_procs]=/usr/lib64/nagios/plugins/check_procs -w 250 -c 400
+      command[check_memory]=/usr/lib64/nagios/plugins/check_memory
   notify: Restart NRPE RedHat
 
 - name: Zainstaluj plugin check_memory
@@ -47,12 +90,6 @@
     owner: root
     group: root
     mode: "0755"
-
-- name: Dodaj check pamięci do NRPE
-  ansible.builtin.lineinfile:
-    path: /etc/nrpe.d/system.cfg
-    line: "command[check_memory]=/usr/lib64/nagios/plugins/check_memory"
-  notify: Restart NRPE RedHat
 
 - name: Uruchom i włącz NRPE na RedHat
   ansible.builtin.service:

@@ -31,7 +31,7 @@ if ! ansible "$TARGET_HOST" --list-hosts 2>/dev/null \
   exit 1
 fi
 
-echo "[0/5] Kontrola wstępna hosta..."
+echo "[0/6] Kontrola wstępna hosta..."
 
 echo "  - Sprawdzam połączenie Ansible..."
 ansible "$TARGET_HOST" \
@@ -48,15 +48,15 @@ ansible "$TARGET_HOST" \
 echo "Pre-check: OK"
 echo
 
-echo "[1/5] Generowanie metadanych buildu..."
+echo "[1/6] Generowanie metadanych buildu..."
 "$BUILD_INFO_SCRIPT"
 
 echo
-echo "[2/5] Budowanie aplikacji..."
+echo "[2/6] Budowanie aplikacji..."
 mvn -B -f "$APP_DIR/pom.xml" clean verify
 
 echo
-echo "[3/5] Sprawdzanie artefaktu WAR..."
+echo "[3/6] Sprawdzanie artefaktu WAR..."
 test -f "$APP_DIR/target/hello-wildfly.war"
 
 jar tf "$APP_DIR/target/hello-wildfly.war" \
@@ -65,14 +65,41 @@ jar tf "$APP_DIR/target/hello-wildfly.war" \
 echo "WAR: OK"
 
 echo
-echo "[4/5] Sprawdzanie składni Ansible..."
+echo "[4/6] Sprawdzanie składni Ansible..."
 ansible-playbook "$PLAYBOOK" --syntax-check
 
 echo
-echo "[5/5] Deployment i weryfikacja..."
+echo "[5/6] Deployment i weryfikacja..."
 ansible-playbook "$PLAYBOOK" \
   -K \
   --limit "$TARGET_HOST"
+
+echo
+echo "[6/6] Dołączanie hosta do monitoringu LAB..."
+
+echo "  - Instalacja i konfiguracja Node Exporter..."
+ansible-playbook "$REPO_DIR/node_exporter.yml" \
+  -K \
+  --limit "$TARGET_HOST"
+
+echo
+echo "  - Instalacja i konfiguracja NRPE..."
+ansible-playbook "$REPO_DIR/nrpe.yml" \
+  -K \
+  --limit "$TARGET_HOST"
+
+echo
+echo "  - Odświeżanie konfiguracji Nagios..."
+ansible-playbook "$REPO_DIR/nagios.yml" \
+  -K
+
+echo
+echo "  - Odświeżanie konfiguracji Prometheus..."
+ansible-playbook "$REPO_DIR/prometheus.yml" \
+  -K
+
+echo
+echo "Monitoring onboarding: OK"
 
 echo
 echo "========================================"
