@@ -51,6 +51,14 @@ jobs:
       - name: Run tests and build
         run: mvn -B -f applications/hello-wildfly/pom.xml clean verify
 
+      - name: Verify build metadata in WAR
+        run: |
+          jar tf applications/hello-wildfly/target/hello-wildfly.war \
+            | grep -Fx 'WEB-INF/classes/build-info.properties'
+
+          unzip -p applications/hello-wildfly/target/hello-wildfly.war \
+            WEB-INF/classes/build-info.properties
+
       - name: Upload WAR artifact
         uses: actions/upload-artifact@v7
         with:
