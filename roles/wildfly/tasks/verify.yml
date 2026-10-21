@@ -181,3 +181,46 @@
 - name: Wyświetl metadane wdrożonego buildu
   ansible.builtin.debug:
     msg: "{{ wildfly_deployed_build_info.stdout_lines }}"
+
+- name: Parsuj metadane wdrożonego buildu
+  ansible.builtin.set_fact:
+    wildfly_build_commit: >-
+      {{
+        wildfly_deployed_build_info.stdout_lines
+        | select('match', '^git.commit=')
+        | first
+        | regex_replace('^git.commit=', '')
+      }}
+    wildfly_build_ref: >-
+      {{
+        wildfly_deployed_build_info.stdout_lines
+        | select('match', '^git.ref=')
+        | first
+        | regex_replace('^git.ref=', '')
+      }}
+    wildfly_build_run_id: >-
+      {{
+        wildfly_deployed_build_info.stdout_lines
+        | select('match', '^github.run.id=')
+        | first
+        | regex_replace('^github.run.id=', '')
+      }}
+    wildfly_build_run_number: >-
+      {{
+        wildfly_deployed_build_info.stdout_lines
+        | select('match', '^github.run.number=')
+        | first
+        | regex_replace('^github.run.number=', '')
+      }}
+
+- name: Podsumowanie wdrożenia WildFly
+  ansible.builtin.debug:
+    msg:
+      - "Host: {{ inventory_hostname }}"
+      - "Aplikacja: {{ wildfly_app_name }}"
+      - "Git commit: {{ wildfly_build_commit }}"
+      - "Git ref: {{ wildfly_build_ref }}"
+      - "GitHub run ID: {{ wildfly_build_run_id }}"
+      - "GitHub run number: {{ wildfly_build_run_number }}"
+      - "SHA-256: {{ wildfly_verified_war.stat.checksum }}"
+      - "Endpoint: http://127.0.0.1:8080/{{ wildfly_app_name }}/api/hello/data"
