@@ -173,5 +173,27 @@
         success_msg: >-
           Aplikacja {{ wildfly_app_name }} została poprawnie wdrożona.
 
+    - name: Znajdź backupy WAR
+      ansible.builtin.find:
+        paths: "{{ wildfly_deployments_dir }}"
+        patterns: "{{ wildfly_app_name }}.war.*~"
+        file_type: file
+        recurse: false
+      register: wildfly_war_backups
+
+    - name: Usuń starsze backupy WAR
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: >-
+        {{
+          (
+            wildfly_war_backups.files
+            | sort(attribute='mtime', reverse=true)
+          )[5:]
+        }}
+      loop_control:
+        label: "{{ item.path | basename }}"
+
   tags:
     - deploy
