@@ -1,45 +1,49 @@
 # Ansible Infrastructure & CI/CD Lab
 
-Hands-on infrastructure automation lab built around **Ansible**, **WildFly**, **PostgreSQL**, **GitHub Actions** and a complete monitoring stack based on **Nagios**, **Prometheus** and **Grafana**.
+Hands-on infrastructure automation lab built around **Ansible**, **Linux**, **WildFly**, **PostgreSQL**, **Apache**, **GitHub Actions** and a monitoring stack based on **Nagios**, **Prometheus** and **Grafana**.
 
-The project focuses on practical system administration and DevOps workflows: provisioning fresh hosts, deploying applications, configuring database connectivity, validating deployments, monitoring services and keeping the entire process repeatable and idempotent.
+The project focuses on practical System Engineering and DevOps workflows:
 
-## Key Features
+- provisioning fresh Linux hosts
+- configuration management
+- application and service deployment
+- database connectivity
+- secrets management
+- deployment verification
+- monitoring onboarding
+- idempotency
+- troubleshooting real infrastructure dependencies
 
-- Ansible roles for reusable infrastructure configuration
-- WildFly installation and configuration
-- Java 21 provisioning
-- PostgreSQL datasource configuration
-- application deployment from a WAR artifact
-- deployment pre-flight checks
-- datasource connectivity verification
-- SHA-256 artifact verification
-- embedded Git/build metadata
-- automatic deployment rollback
-- deployment backup rotation
-- GitHub Actions CI/CD
-- Node Exporter installation
-- Prometheus target generation from Ansible inventory
-- Grafana monitoring
-- NRPE installation and configuration
-- Nagios host generation from Ansible inventory
-- one-command deployment and monitoring onboarding
-- idempotent Ansible roles
+The LAB is developed incrementally. New virtual machines are deliberately introduced as fresh systems to expose hidden assumptions and improve automation until hosts can be onboarded predictably.
 
 ---
 
-## One-command deployment
+## Current Capabilities
 
-A new application host can be provisioned, configured, deployed and connected to the monitoring stack with a single command:
+The repository currently provides automated provisioning workflows for:
+
+| Platform | Entry point | Purpose |
+|---|---|---|
+| WildFly | `deploy-lab.sh` | Java application platform, datasource, WAR deployment and monitoring |
+| PostgreSQL | `deploy-database.sh` | Database provisioning, access control, connectivity verification and monitoring |
+| Apache | `deploy-apache.sh` | Web server provisioning, HTTP verification and monitoring |
+
+Each workflow is designed to be repeatable and idempotent.
+
+---
+
+## One-command Provisioning
+
+### WildFly application host
 
 ```bash
 ./deploy-lab.sh rhel02
 ```
 
-The script performs the complete workflow:
+The workflow performs:
 
 ```text
-Host pre-check
+Host validation
       |
       v
 SSH / Ansible connectivity
@@ -54,10 +58,7 @@ Generate build metadata
 Maven build + tests
       |
       v
-WAR artifact verification
-      |
-      v
-Ansible syntax check
+WAR validation
       |
       v
 Java provisioning
@@ -66,7 +67,7 @@ Java provisioning
 WildFly provisioning
       |
       v
-PostgreSQL JDBC configuration
+PostgreSQL JDBC datasource
       |
       v
 Datasource connectivity test
@@ -81,33 +82,168 @@ Deployment verification
 SHA-256 verification
       |
       v
-Node Exporter
+Monitoring onboarding
       |
-      +--------------------+
-      |                    |
-      v                    v
-    NRPE              Prometheus
-      |                    |
-      v                    v
-    Nagios              Grafana
+      +-------------------+
+      |                   |
+      v                   v
+    Nagios            Prometheus
+                          |
+                          v
+                        Grafana
 ```
 
-A successful deployment ends with the host fully integrated into the LAB environment.
+### PostgreSQL database host
+
+```bash
+./deploy-database.sh database02
+```
+
+The workflow performs:
+
+```text
+Host validation
+      |
+      v
+SSH / Ansible connectivity
+      |
+      v
+Privilege escalation check
+      |
+      v
+Ansible syntax validation
+      |
+      v
+PostgreSQL installation
+      |
+      v
+Database + user provisioning
+      |
+      v
+listen_addresses configuration
+      |
+      v
+Declarative pg_hba.conf
+      |
+      v
+Local service verification
+      |
+      v
+Remote psql connection test
+      |
+      v
+Monitoring onboarding
+```
+
+Remote PostgreSQL access is generated dynamically from the Ansible inventory.
+
+Hosts allowed to connect to the application database belong to:
+
+```ini
+[db_clients]
+debian01
+debian02
+rhel01
+rhel02
+```
+
+The resulting `pg_hba.conf` therefore reflects infrastructure state defined in inventory instead of a hardcoded list of IP addresses.
+
+### Apache web server
+
+```bash
+./deploy-apache.sh apache01
+```
+
+The workflow performs:
+
+```text
+Host validation
+      |
+      v
+SSH / Ansible connectivity
+      |
+      v
+Privilege escalation check
+      |
+      v
+Ansible syntax validation
+      |
+      v
+Apache/httpd installation
+      |
+      v
+Web page deployment
+      |
+      v
+Service activation
+      |
+      v
+Firewall configuration
+      |
+      v
+HTTP verification
+      |
+      v
+Monitoring onboarding
+```
+
+The Apache role currently supports:
+
+- Red Hat Enterprise Linux
+- Oracle Linux
+- Debian
 
 ---
 
-## Deployment Safety
+## Infrastructure Architecture
 
-The WildFly deployment process includes several checks before an application is accepted as successfully deployed.
+Example LAB architecture:
+
+```text
+                     Ansible Control Node
+                         macOS / ARM64
+                              |
+                              |
+         +--------------------+--------------------+
+         |                    |                    |
+         v                    v                    v
+   Application Hosts     Database Hosts       Web Servers
+   WildFly / Java        PostgreSQL           Apache/httpd
+         |                    ^                    |
+         | JDBC               |                    |
+         +--------------------+                    |
+                                                   |
+                         Monitoring                |
+                             |                     |
+              +--------------+--------------+      |
+              |                             |      |
+              v                             v      |
+           Nagios                       Prometheus |
+              |                             |      |
+              |                             v      |
+              |                           Grafana  |
+              +-----------------------------+------+
+```
+
+PostgreSQL runs on dedicated database hosts.
+
+Application servers connect remotely using JDBC rather than running the database locally.
+
+---
+
+## WildFly Deployment Safety
+
+The WildFly deployment process includes several safeguards before an application is considered successfully deployed.
 
 ### Pre-flight validation
 
-Before deployment Ansible verifies:
+Ansible verifies:
 
 - application artifact exists
 - WAR archive is valid
-- required WAR structure is present
-- PostgreSQL server is reachable
+- required WAR structure exists
+- PostgreSQL is reachable
 - WildFly datasource connection succeeds
 - Ansible configuration is valid
 
@@ -115,9 +251,9 @@ Before deployment Ansible verifies:
 
 The source WAR SHA-256 checksum is calculated before deployment.
 
-After deployment the checksum of the remote artifact is calculated again and compared with the source artifact.
+After deployment, the remote artifact checksum is calculated again and compared with the source.
 
-A checksum file is stored alongside the deployed WAR:
+Deployment metadata is stored alongside the application:
 
 ```text
 /opt/wildfly/standalone/deployments/
@@ -130,7 +266,7 @@ A checksum file is stored alongside the deployed WAR:
 
 Before replacing an existing deployment, Ansible creates a backup.
 
-If WildFly reports a deployment failure, the previous version can be automatically restored.
+If WildFly reports a deployment failure, the previous artifact can be restored automatically.
 
 Old deployment backups are rotated and only the newest backups are retained.
 
@@ -153,38 +289,85 @@ github.run.id=39635338435
 github.run.number=54
 ```
 
-For local builds the Git commit and branch are resolved locally, while GitHub-specific values are marked as local.
-
-The same metadata is written to the WildFly deployment directory so the currently deployed version can be identified directly on the server.
+The same information is stored on the target server so the deployed version can be identified directly from the filesystem.
 
 ---
 
-## Deployment Summary
+## PostgreSQL Architecture
 
-After verification Ansible reports information about the deployed application, including:
+Example configuration:
 
 ```text
-Host
-Application
-Git commit
-Git ref
-GitHub Actions run ID
-GitHub Actions run number
-SHA-256
-Application endpoint
+Application hosts
+      |
+      | PostgreSQL / JDBC
+      v
+database01 / database02
+      |
+      v
+ansible_lab
 ```
 
-This makes it possible to identify exactly which artifact is running on a particular host.
+Application database:
+
+```text
+Database: ansible_lab
+User:     ansible_app
+```
+
+PostgreSQL configuration includes:
+
+- database provisioning
+- application user provisioning
+- SCRAM authentication
+- dynamic `listen_addresses`
+- declarative `pg_hba.conf`
+- access generated from the `[db_clients]` inventory group
+- remote connectivity verification
+- idempotent repeated execution
+
+Database credentials are stored using **Ansible Vault**.
 
 ---
 
-## Monitoring Onboarding
+## Secrets and Privilege Escalation
 
-Monitoring is automatically configured after a successful application deployment.
+Secrets are not stored as plaintext variables.
+
+The LAB uses:
+
+```text
+group_vars/all/vault.yml
+```
+
+for encrypted values such as:
+
+- PostgreSQL credentials
+- sudo/become passwords
+
+Host-specific privilege escalation passwords are mapped through Vault and exposed to Ansible using:
+
+```yaml
+ansible_become_password: "{{ vault_become_passwords[inventory_hostname] }}"
+```
+
+As a result, normal provisioning no longer requires repeated `BECOME password:` prompts.
+
+Example:
+
+```bash
+ansible database02 -b -m ansible.builtin.command -a 'id'
+```
+
+---
+
+## Monitoring
+
+Monitoring onboarding is part of the provisioning workflow rather than a separate manual task.
 
 ### Node Exporter
 
-Node Exporter is installed on the target host and exposes Linux host metrics on:
+Node Exporter exposes Linux host metrics on:
 
 ```text
 :9100
@@ -192,60 +375,146 @@ Node Exporter is installed on the target host and exposes Linux host metrics on:
 
 ### Prometheus
 
-Prometheus configuration is generated dynamically from the Ansible inventory.
+Prometheus targets are generated dynamically from the Ansible inventory.
 
-Each inventory host becomes a scrape target with its Ansible hostname attached as a label:
+Example:
 
 ```yaml
 labels:
-  host: "rhel02"
+  host: "apache01"
 ```
 
-Adding a host to the inventory and refreshing Prometheus automatically makes it available as a monitoring target.
+Adding a host to inventory and refreshing the Prometheus configuration makes the host available for scraping.
 
 ### Grafana
 
 Grafana uses Prometheus as its datasource.
 
-New hosts registered in Prometheus become available in the LAB dashboards without manually adding individual Grafana targets.
-
-### NRPE
-
-NRPE provides service and operating-system checks used by Nagios.
-
-Example checks include:
-
-- system load
-- root filesystem usage
-- process count
-- memory usage
-- WildFly TCP/HTTP availability
-
-For RHEL systems the role automatically prepares the package repositories required for NRPE and Nagios plugins.
+New hosts automatically become available in dashboards once Prometheus begins collecting their metrics.
 
 ### Nagios
 
-Nagios host configuration is generated from the Ansible inventory.
+Nagios host configuration is generated from Ansible inventory.
 
-A newly added host can therefore become visible in Nagios without maintaining a separate static host list.
-
-The resulting monitoring architecture is:
+Typical checks include:
 
 ```text
-                  Ansible Inventory
-                         |
-              +----------+----------+
-              |                     |
-              v                     v
-           Nagios                Prometheus
-              |                     |
-            NRPE              Node Exporter
-              |                     |
-              +------ LAB Host -----+
-                                    |
-                                    v
-                                  Grafana
+PING
+SSH
+HTTP
+PostgreSQL TCP/5432
+WildFly availability
+system load
+memory
+filesystem usage
+process count
 ```
+
+NRPE is used where operating-system or application checks need to be executed remotely.
+
+---
+
+## Inventory Design
+
+Inventory groups describe both operating systems and infrastructure responsibilities.
+
+Example:
+
+```ini
+[oracle]
+oracle01
+oracle02
+
+[debian]
+debian01
+debian02
+database01
+database02
+
+[rhel]
+rhel01
+rhel02
+apache01
+
+[apache]
+oracle01
+oracle02
+apache01
+
+[wildfly]
+debian02
+rhel01
+rhel02
+
+[database]
+database01
+database02
+
+[db_clients]
+debian01
+debian02
+rhel01
+rhel02
+
+[http_servers]
+oracle01
+oracle02
+debian01
+debian02
+apache01
+
+[monitoring]
+oracle01
+```
+
+Functional groups such as `[database]`, `[db_clients]`, `[apache]`, `[wildfly]`, `[http_servers]` and `[monitoring]` describe infrastructure responsibilities independently of the Linux distribution.
+
+---
+
+## Fresh Host Requirements
+
+A new LAB host requires only the minimum operating-system bootstrap:
+
+- SSH connectivity
+- SSH public-key authentication
+- Ansible user
+- sudo privileges
+- Python 3
+- network connectivity
+- inventory entry
+- encrypted become password in Ansible Vault
+
+Example connectivity test:
+
+```bash
+ansible apache01 -m ansible.builtin.ping
+```
+
+Privilege escalation test:
+
+```bash
+ansible apache01 -b -m ansible.builtin.command -a 'id'
+```
+
+For registered RHEL systems, roles can automatically configure additional repositories where required by installed components.
+
+---
+
+## Idempotency
+
+Idempotency is treated as a core requirement.
+
+A successful first execution is not sufficient — the same playbook must be safe to run repeatedly.
+
+Examples from the LAB:
+
+```text
+database02 : ok=12 changed=0 unreachable=0 failed=0
+apache01   : ok=6  changed=0 unreachable=0 failed=0
+rhel02     : ok=13 changed=0 unreachable=0 failed=0
+```
+
+A second execution with `changed=0` and `failed=0` is used as an important validation step when developing or modifying roles.
 
 ---
 
@@ -263,19 +532,19 @@ Deployment directory:
 /opt/wildfly/standalone/deployments/
 ```
 
-Example API endpoint:
+Example endpoint:
 
 ```text
 http://HOST:8080/hello-wildfly/api/hello/data
 ```
 
-The application uses the WildFly datasource:
+Datasource:
 
 ```text
 AnsibleLabDS
 ```
 
-with JNDI name:
+JNDI:
 
 ```text
 java:/jdbc/AnsibleLabDS
@@ -283,195 +552,9 @@ java:/jdbc/AnsibleLabDS
 
 ---
 
-## Database Architecture
-
-PostgreSQL runs on a dedicated database host.
-
-The application hosts connect remotely to the database rather than running PostgreSQL locally.
-
-```text
-WildFly hosts
-     |
-     | JDBC
-     v
-database01
-PostgreSQL
-```
-
-Example LAB database configuration:
-
-```text
-Database: ansible_lab
-User:     ansible_app
-```
-
-Database credentials are stored using **Ansible Vault** and are not committed as plaintext secrets.
-
----
-
-## Inventory
-
-The LAB inventory is divided into functional groups.
-
-Example structure:
-
-```ini
-[oracle]
-oracle01
-oracle02
-
-[debian]
-debian01
-debian02
-database01
-
-[rhel]
-rhel01
-rhel02
-
-[wildfly]
-debian02
-rhel01
-rhel02
-
-[java]
-debian01
-debian02
-rhel01
-rhel02
-
-[database]
-database01
-
-[monitoring]
-oracle01
-```
-
-Groups are used to assign infrastructure roles and application responsibilities.
-
----
-
-## Fresh Host Requirements
-
-Before using a new host with the LAB, the following minimum requirements apply:
-
-- host is reachable over SSH
-- SSH public-key authentication is configured
-- Ansible user has sudo privileges
-- Python 3 is available on the managed host
-- host is added to the Ansible inventory
-- required network connectivity between LAB systems is available
-
-For registered RHEL hosts the NRPE role can automatically enable the required **CodeReady Builder** repository and install **EPEL**.
-
-Example connectivity test:
-
-```bash
-ansible rhel02 -m ansible.builtin.ping
-```
-
-Privilege test:
-
-```bash
-ansible rhel02 -b -K -m ansible.builtin.command -a 'id'
-```
-
----
-
-## Control Node Requirements
-
-The Ansible control node requires:
-
-- Ansible
-- Python
-- Git
-- Maven
-- SSH client
-- access to the LAB network
-
-The project is developed from an Apple Silicon macOS control node using a Python virtual environment.
-
-Example:
-
-```bash
-source ~/ansible/venv/bin/activate
-```
-
----
-
-## Running the WildFly Deployment Manually
-
-The complete WildFly role can also be executed without the deployment wrapper:
-
-```bash
-ansible-playbook wildfly_role.yml -K --limit rhel02
-```
-
-Selected parts of the role can be executed using tags:
-
-```bash
-ansible-playbook wildfly_role.yml -K --limit rhel02 --tags datasource
-```
-
-```bash
-ansible-playbook wildfly_role.yml -K --limit rhel02 --tags deploy
-```
-
-```bash
-ansible-playbook wildfly_role.yml -K --limit rhel02 --tags verify
-```
-
----
-
-## Monitoring Playbooks
-
-Node Exporter:
-
-```bash
-ansible-playbook node_exporter.yml -K --limit rhel02
-```
-
-NRPE:
-
-```bash
-ansible-playbook nrpe.yml -K --limit rhel02
-```
-
-Nagios:
-
-```bash
-ansible-playbook nagios.yml -K
-```
-
-Prometheus:
-
-```bash
-ansible-playbook prometheus.yml -K
-```
-
----
-
-## Idempotency
-
-Roles are designed so repeated executions do not introduce unnecessary changes.
-
-Example verified NRPE rerun:
-
-```text
-PLAY RECAP
-
-rhel02 : ok=11 changed=0 unreachable=0 failed=0
-```
-
-Idempotency is treated as a core requirement rather than only a successful first execution.
-
----
-
 ## CI/CD
 
-GitHub Actions is used to build and validate the application before deployment.
-
-The pipeline includes:
+GitHub Actions is used to build and validate the Java application before deployment.
 
 ```text
 Source code
@@ -498,28 +581,38 @@ Ansible deployment
 Application verification
 ```
 
-The deployment workflow can use artifacts generated by the CI workflow instead of rebuilding them on the application server.
+Deployment can use artifacts generated by CI rather than rebuilding them directly on an application server.
 
 ---
 
 ## Repository Structure
 
-Main areas of the repository include:
+Main areas of the repository:
 
 ```text
 .
 ├── applications/
 │   └── hello-wildfly/
 ├── group_vars/
+│   └── all/
+│       ├── main.yml
+│       └── vault.yml
 ├── roles/
+│   ├── apache/
 │   ├── java/
+│   ├── postgresql/
 │   ├── wildfly/
 │   ├── node_exporter/
 │   ├── nrpe/
 │   ├── nagios/
-│   └── prometheus/
+│   ├── prometheus/
+│   └── grafana/
 ├── deploy-lab.sh
+├── deploy-database.sh
+├── deploy-apache.sh
 ├── wildfly_role.yml
+├── postgresql_role.yml
+├── apache_role.yml
 ├── node_exporter.yml
 ├── nrpe.yml
 ├── nagios.yml
@@ -532,25 +625,37 @@ Additional roles and playbooks are used for other LAB services and experiments.
 
 ## Technologies
 
-**Automation**
+### Automation
 
 - Ansible
 - Ansible Vault
 - Bash
+- Git
 - GitHub Actions
 
-**Application Platform**
+### Linux
+
+- Red Hat Enterprise Linux
+- Debian
+- Oracle Linux
+- macOS control node
+
+### Application Platform
 
 - Java 21
 - WildFly
 - Maven
 
-**Database**
+### Web
+
+- Apache HTTP Server
+
+### Database
 
 - PostgreSQL
 - JDBC
 
-**Monitoring**
+### Monitoring
 
 - Nagios
 - NRPE
@@ -558,20 +663,13 @@ Additional roles and playbooks are used for other LAB services and experiments.
 - Node Exporter
 - Grafana
 
-**Operating Systems**
-
-- Red Hat Enterprise Linux
-- Debian
-- Oracle Linux
-- macOS control node
-
 ---
 
 ## Project Goals
 
-The goal of this repository is to build practical experience with real administration and DevOps workflows rather than isolated Ansible examples.
+The goal of the repository is to build practical experience with real System Engineering, Infrastructure Automation and DevOps workflows.
 
-Areas covered by the LAB include:
+Areas covered include:
 
 - Infrastructure as Code
 - configuration management
@@ -584,39 +682,45 @@ Areas covered by the LAB include:
 - rollback strategies
 - infrastructure troubleshooting
 - Linux administration
+- service dependency management
 
-The environment is intentionally developed incrementally: new hosts and services are used to expose hidden dependencies and improve the automation until a fresh system can be onboarded predictably.
+The environment is intentionally developed from real failures and fresh-host tests rather than only from predefined examples.
+
+Each new system is used to identify hidden assumptions and make the automation more portable and predictable.
 
 ---
 
 ## Current Result
 
-A newly prepared LAB host can now go from:
+The LAB can currently automate three different infrastructure paths:
 
 ```text
 Fresh Linux VM
+      |
+      +----> WildFly + Java + Application
+      |
+      +----> PostgreSQL Database
+      |
+      +----> Apache Web Server
 ```
 
-to:
+Each provisioned host can then be connected to:
 
 ```text
-Java
-+ WildFly
-+ PostgreSQL datasource
-+ deployed application
-+ verified artifact
-+ deployment metadata
-+ Node Exporter
-+ NRPE
-+ Nagios monitoring
-+ Prometheus monitoring
-+ Grafana visibility
+Node Exporter
+Prometheus
+Grafana
+Nagios
 ```
 
-using the automated Ansible workflow.
+with infrastructure state driven primarily from the Ansible inventory.
 
-The main entry point is:
+Main entry points:
 
 ```bash
-./deploy-lab.sh <host>
+./deploy-lab.sh <wildfly-host>
+./deploy-database.sh <database-host>
+./deploy-apache.sh <apache-host>
 ```
+
+The next stages of the LAB continue the same approach by extending fresh-host automation to additional application and infrastructure services.
