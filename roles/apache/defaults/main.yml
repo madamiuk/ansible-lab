@@ -1,10 +1,13 @@
 ---
 apache_package_map:
   OracleLinux: httpd
+  RedHat: httpd
   Debian: apache2
 
 apache_service_map:
   OracleLinux: httpd
+  RedHat: httpd
   Debian: apache2
 
 apache_message: "Domyslna wiadomość z roli"
+server_environment: lab

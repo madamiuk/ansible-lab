@@ -27,4 +27,4 @@
     permanent: true
     state: enabled
     immediate: true
-  when: ansible_facts['distribution'] == 'OracleLinux'
+  when: ansible_facts['distribution'] in ['OracleLinux', 'RedHat']
