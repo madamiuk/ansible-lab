@@ -1,26 +1,46 @@
 ---
 - name: Test zdalnego połączenia z PostgreSQL
-  hosts: webservers
+  hosts: db_clients
   gather_facts: true
   become: true
 
   vars:
+    postgresql_test_database_host: database02
+
     postgresql_client_package_map:
       Debian: postgresql-client
       OracleLinux: postgresql
+      RedHat: postgresql
 
   tasks:
+    - name: Sprawdź czy host bazy istnieje w inventory
+      ansible.builtin.assert:
+        that:
+          - postgresql_test_database_host in hostvars
+        fail_msg: >-
+          Host bazy '{{ postgresql_test_database_host }}'
+          nie istnieje w inventory.
+      run_once: true
+
+    - name: Ustal adres serwera PostgreSQL
+      ansible.builtin.set_fact:
+        postgresql_test_database_address: >-
+          {{
+            hostvars[postgresql_test_database_host]['ansible_host']
+            | default(postgresql_test_database_host)
+          }}
+
     - name: Zainstaluj klienta PostgreSQL
       ansible.builtin.package:
         name: "{{ postgresql_client_package_map[ansible_facts['distribution']] }}"
         state: present
 
-    - name: Sprawdź połączenie z database01
+    - name: Sprawdź zdalne połączenie z PostgreSQL
       ansible.builtin.command:
         argv:
           - psql
           - -h
-          - 192.168.64.20
+          - "{{ postgresql_test_database_address }}"
           - -U
           - "{{ postgresql_db_user }}"
           - -d

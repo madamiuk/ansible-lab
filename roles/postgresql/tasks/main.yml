@@ -61,14 +61,75 @@
     line: "listen_addresses = '{{ postgresql_listen_addresses | join(',') }}'"
   notify: Restart PostgreSQL
 
-- name: Zezwól webserverom na dostęp do bazy
+- name: Zbuduj podstawowe reguły pg_hba
+  ansible.builtin.set_fact:
+    postgresql_hba_rules:
+      - contype: local
+        databases: all
+        users: postgres
+        method: peer
+
+      - contype: local
+        databases: all
+        users: all
+        method: peer
+
+      - contype: host
+        databases: all
+        users: all
+        address: 127.0.0.1/32
+        method: scram-sha-256
+
+      - contype: host
+        databases: all
+        users: all
+        address: ::1/128
+        method: scram-sha-256
+
+      - contype: local
+        databases: replication
+        users: all
+        method: peer
+
+      - contype: host
+        databases: replication
+        users: all
+        address: 127.0.0.1/32
+        method: scram-sha-256
+
+      - contype: host
+        databases: replication
+        users: all
+        address: ::1/128
+        method: scram-sha-256
+  changed_when: false
+
+- name: Dodaj klientów aplikacyjnych do reguł pg_hba
+  ansible.builtin.set_fact:
+    postgresql_hba_rules: >-
+      {{
+        postgresql_hba_rules
+        +
+        [
+          {
+            'contype': 'host',
+            'databases': postgresql_db_name,
+            'users': postgresql_db_user,
+            'address': item ~ '/32',
+            'method': 'scram-sha-256'
+          }
+        ]
+      }}
+  loop: "{{ postgresql_allowed_hosts }}"
+  changed_when: false
+
+- name: Zarządzaj konfiguracją pg_hba.conf
   community.postgresql.postgresql_pg_hba:
     dest: "{{ postgresql_hba_file }}"
-    contype: host
-    databases: "{{ postgresql_db_name }}"
-    users: "{{ postgresql_db_user }}"
-    source: "{{ item }}/32"
-    method: scram-sha-256
-    state: present
-  loop: "{{ postgresql_allowed_hosts }}"
+    rules: "{{ postgresql_hba_rules }}"
+    overwrite: true
+    backup: true
+    owner: postgres
+    group: postgres
+    mode: "0640"
   notify: Restart PostgreSQL

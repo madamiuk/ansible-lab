@@ -40,7 +40,6 @@ ansible "$TARGET_HOST" \
 echo "  - Sprawdzam uprawnienia sudo..."
 ansible "$TARGET_HOST" \
   -b \
-  -K \
   -m ansible.builtin.command \
   -a 'id -u' \
   | grep -q '0$'
@@ -71,7 +70,6 @@ ansible-playbook "$PLAYBOOK" --syntax-check
 echo
 echo "[5/6] Deployment i weryfikacja..."
 ansible-playbook "$PLAYBOOK" \
-  -K \
   --limit "$TARGET_HOST"
 
 echo
@@ -79,24 +77,20 @@ echo "[6/6] Dołączanie hosta do monitoringu LAB..."
 
 echo "  - Instalacja i konfiguracja Node Exporter..."
 ansible-playbook "$REPO_DIR/node_exporter.yml" \
-  -K \
   --limit "$TARGET_HOST"
 
 echo
 echo "  - Instalacja i konfiguracja NRPE..."
 ansible-playbook "$REPO_DIR/nrpe.yml" \
-  -K \
   --limit "$TARGET_HOST"
 
 echo
 echo "  - Odświeżanie konfiguracji Nagios..."
-ansible-playbook "$REPO_DIR/nagios.yml" \
-  -K
+ansible-playbook "$REPO_DIR/nagios.yml"
 
 echo
 echo "  - Odświeżanie konfiguracji Prometheus..."
-ansible-playbook "$REPO_DIR/prometheus.yml" \
-  -K
+ansible-playbook "$REPO_DIR/prometheus.yml"
 
 echo
 echo "Monitoring onboarding: OK"
