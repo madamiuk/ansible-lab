@@ -1,8 +1,12 @@
 ---
 tomcat_db_jndi_name: jdbc/ansibleLab
-tomcat_db_host: 192.168.64.20
+tomcat_db_host: 192.168.64.24
 tomcat_db_port: 5432
 
 tomcat_db_max_total: 5
 tomcat_db_max_idle: 2
 tomcat_db_max_wait_millis: 5000
+
+postgresql_db_name: ansible_lab
+postgresql_db_user: ansible_app
+postgresql_db_password: "{{ vault_db_password }}"

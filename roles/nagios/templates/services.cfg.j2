@@ -67,5 +67,14 @@ define service {
 }
 {% endif %}
 
+{% if host in groups['tomcat'] %}
+define service {
+    use                     generic-service
+    host_name               {{ host }}
+    service_description     Tomcat Application
+    check_command           check_http!-p 8080 -u /hello-tomcat/hello -e 200
+}
+{% endif %}
+
 {% endif %}
 {% endfor %}
