@@ -1,6 +1,6 @@
 # Ansible Infrastructure & CI/CD Lab
 
-Hands-on infrastructure automation lab built around **Ansible**, **Linux**, **WildFly**, **PostgreSQL**, **Apache**, **GitHub Actions** and a monitoring stack based on **Nagios**, **Prometheus** and **Grafana**.
+Hands-on infrastructure automation lab built around **Ansible**, **Linux**, **WildFly**, **Tomcat**, **PostgreSQL**, **Apache**, **GitHub Actions** and a monitoring stack based on **Nagios**, **Prometheus** and **Grafana**.
 
 The project focuses on practical System Engineering and DevOps workflows:
 
@@ -27,6 +27,7 @@ The repository currently provides automated provisioning workflows for:
 | WildFly | `deploy-lab.sh` | Java application platform, datasource, WAR deployment and monitoring |
 | PostgreSQL | `deploy-database.sh` | Database provisioning, access control, connectivity verification and monitoring |
 | Apache | `deploy-apache.sh` | Web server provisioning, HTTP verification and monitoring |
+| Tomcat | `deploy-tomcat.sh` | Java web application build, deployment, datasource integration, application verification and monitoring |
 
 Each workflow is designed to be repeatable and idempotent.
 
@@ -145,6 +146,7 @@ debian01
 debian02
 rhel01
 rhel02
+tomcat01
 ```
 
 The resulting `pg_hba.conf` therefore reflects infrastructure state defined in inventory instead of a hardcoded list of IP addresses.
@@ -194,6 +196,59 @@ The Apache role currently supports:
 - Oracle Linux
 - Debian
 
+### Tomcat application host
+
+```bash
+./deploy-tomcat.sh tomcat01
+```
+
+The workflow performs:
+
+```text
+Host validation
+      |
+      v
+SSH / Ansible connectivity
+      |
+      v
+Privilege escalation check
+      |
+      v
+Maven build
+      |
+      v
+WAR content verification
+      |
+      v
+Ansible syntax validation
+      |
+      v
+Tomcat 11 provisioning
+      |
+      v
+PostgreSQL JDBC driver
+      |
+      v
+JNDI DataSource configuration
+      |
+      v
+WAR deployment
+      |
+      v
+Application endpoint verification
+      |
+      v
+Monitoring onboarding
+```
+
+The application endpoint used for runtime verification is:
+
+```text
+http://HOST:8080/hello-tomcat/hello
+```
+
+This verifies the deployed Jakarta Servlet and, because the servlet queries PostgreSQL through JNDI, exercises the application-to-database path as well.
+
 ---
 
 ## Infrastructure Architecture
@@ -209,7 +264,7 @@ Example LAB architecture:
          |                    |                    |
          v                    v                    v
    Application Hosts     Database Hosts       Web Servers
-   WildFly / Java        PostgreSQL           Apache/httpd
+ WildFly / Tomcat / Java PostgreSQL           Apache/httpd
          |                    ^                    |
          | JDBC               |                    |
          +--------------------+                    |
@@ -402,6 +457,7 @@ Typical checks include:
 PING
 SSH
 HTTP
+Tomcat application endpoint
 PostgreSQL TCP/5432
 WildFly availability
 system load
@@ -430,6 +486,7 @@ debian01
 debian02
 database01
 database02
+tomcat01
 
 [rhel]
 rhel01
@@ -440,6 +497,10 @@ apache01
 oracle01
 oracle02
 apache01
+
+[tomcat]
+debian01
+tomcat01
 
 [wildfly]
 debian02
@@ -455,6 +516,7 @@ debian01
 debian02
 rhel01
 rhel02
+tomcat01
 
 [http_servers]
 oracle01
@@ -467,7 +529,7 @@ apache01
 oracle01
 ```
 
-Functional groups such as `[database]`, `[db_clients]`, `[apache]`, `[wildfly]`, `[http_servers]` and `[monitoring]` describe infrastructure responsibilities independently of the Linux distribution.
+Functional groups such as `[database]`, `[db_clients]`, `[apache]`, `[tomcat]`, `[wildfly]`, `[http_servers]` and `[monitoring]` describe infrastructure responsibilities independently of the Linux distribution.
 
 ---
 
@@ -481,6 +543,8 @@ A new LAB host requires only the minimum operating-system bootstrap:
 - sudo privileges
 - Python 3
 - network connectivity
+- stable IPv4 addressing and DNS configuration
+- IPv6 disabled where required by the LAB baseline
 - inventory entry
 - encrypted become password in Ansible Vault
 
@@ -511,6 +575,7 @@ Examples from the LAB:
 ```text
 database02 : ok=12 changed=0 unreachable=0 failed=0
 apache01   : ok=6  changed=0 unreachable=0 failed=0
+tomcat01   : ok=7  changed=0 unreachable=0 failed=0
 rhel02     : ok=13 changed=0 unreachable=0 failed=0
 ```
 
@@ -548,6 +613,44 @@ JNDI:
 
 ```text
 java:/jdbc/AnsibleLabDS
+```
+
+---
+
+## Tomcat Application
+
+The example Tomcat application is deployed as:
+
+```text
+hello-tomcat.war
+```
+
+Deployment directory:
+
+```text
+/var/lib/tomcat11/webapps/
+```
+
+Application endpoint:
+
+```text
+http://HOST:8080/hello-tomcat/hello
+```
+
+The application uses:
+
+```text
+JNDI:     jdbc/ansibleLab
+Database: ansible_lab
+User:     ansible_app
+```
+
+The datasource points to the dedicated PostgreSQL host and uses the PostgreSQL JDBC driver installed by the Tomcat role.
+
+Nagios verifies the real application endpoint rather than only checking whether TCP/8080 is open:
+
+```text
+check_http -p 8080 -u /hello-tomcat/hello -e 200
 ```
 
 ---
@@ -592,7 +695,8 @@ Main areas of the repository:
 ```text
 .
 ├── applications/
-│   └── hello-wildfly/
+│   ├── hello-wildfly/
+│   └── hello-tomcat/
 ├── group_vars/
 │   └── all/
 │       ├── main.yml
@@ -601,6 +705,7 @@ Main areas of the repository:
 │   ├── apache/
 │   ├── java/
 │   ├── postgresql/
+│   ├── tomcat/
 │   ├── wildfly/
 │   ├── node_exporter/
 │   ├── nrpe/
@@ -610,9 +715,11 @@ Main areas of the repository:
 ├── deploy-lab.sh
 ├── deploy-database.sh
 ├── deploy-apache.sh
+├── deploy-tomcat.sh
 ├── wildfly_role.yml
 ├── postgresql_role.yml
 ├── apache_role.yml
+├── tomcat_role.yml
 ├── node_exporter.yml
 ├── nrpe.yml
 ├── nagios.yml
@@ -644,6 +751,7 @@ Additional roles and playbooks are used for other LAB services and experiments.
 
 - Java 21
 - WildFly
+- Apache Tomcat 11
 - Maven
 
 ### Web
@@ -692,7 +800,7 @@ Each new system is used to identify hidden assumptions and make the automation m
 
 ## Current Result
 
-The LAB can currently automate three different infrastructure paths:
+The LAB can currently automate four different infrastructure paths:
 
 ```text
 Fresh Linux VM
@@ -702,6 +810,8 @@ Fresh Linux VM
       +----> PostgreSQL Database
       |
       +----> Apache Web Server
+      |
+      +----> Tomcat + Java Web Application
 ```
 
 Each provisioned host can then be connected to:
@@ -721,6 +831,7 @@ Main entry points:
 ./deploy-lab.sh <wildfly-host>
 ./deploy-database.sh <database-host>
 ./deploy-apache.sh <apache-host>
+./deploy-tomcat.sh <tomcat-host>
 ```
 
 The next stages of the LAB continue the same approach by extending fresh-host automation to additional application and infrastructure services.
