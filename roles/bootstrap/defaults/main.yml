@@ -1,0 +1,11 @@
+---
+bootstrap_interface: enp0s1
+
+bootstrap_ipv4_prefix: 24
+bootstrap_ipv4_gateway: 192.168.64.1
+
+bootstrap_dns_servers:
+  - 192.168.64.1
+
+bootstrap_disable_ipv6: true
+bootstrap_reboot: false

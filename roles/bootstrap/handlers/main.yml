@@ -1,0 +1,6 @@
+---
+- name: Bootstrap configuration changed
+  ansible.builtin.debug:
+    msg: >-
+      Konfiguracja bazowa hosta została zmieniona.
+      Restart hosta może być wymagany.
