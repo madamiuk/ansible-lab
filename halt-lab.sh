@@ -64,22 +64,64 @@ echo
 echo "Wysyłam polecenie wyłączenia..."
 echo
 
+SHUTDOWN_REQUESTED=()
+
 for host in "${RUNNING_HOSTS[@]}"; do
     printf "  %-15s " "$host"
 
     if ansible "$host" \
         -b \
         -m ansible.builtin.command \
-        -a "systemctl poweroff --no-block" \
+        -a "systemd-run --on-active=2s systemctl poweroff" \
         -o >/dev/null 2>&1; then
 
-        echo "shutdown wysłany"
+        echo "shutdown zaplanowany"
+        SHUTDOWN_REQUESTED+=("$host")
     else
-        echo "UWAGA: nie udało się wysłać polecenia"
+        echo "UWAGA: nie udało się zaplanować shutdown"
+    fi
+done
+
+echo
+echo "Czekam na wyłączenie hostów..."
+
+sleep 8
+
+echo
+echo "Weryfikacja:"
+echo
+
+FAILED_HOSTS=()
+
+for host in "${SHUTDOWN_REQUESTED[@]}"; do
+    printf "  %-15s " "$host"
+
+    if ansible "$host" \
+        -m ansible.builtin.ping \
+        -o >/dev/null 2>&1; then
+
+        echo "NADAL ONLINE"
+        FAILED_HOSTS+=("$host")
+    else
+        echo "OFFLINE"
     fi
 done
 
 echo
 echo "========================================"
-echo " Polecenia wyłączenia zostały wysłane"
+
+if [[ ${#FAILED_HOSTS[@]} -eq 0 ]]; then
+    echo " Wszystkie uruchomione VM zostały wyłączone"
+    EXIT_CODE=0
+else
+    echo " Nie wszystkie VM zostały wyłączone"
+    echo
+    echo " Nadal dostępne:"
+    printf '  - %s\n' "${FAILED_HOSTS[@]}"
+    EXIT_CODE=1
+fi
+
 echo "========================================"
+echo
+
+exit "$EXIT_CODE"
