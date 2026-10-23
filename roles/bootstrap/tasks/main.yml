@@ -1,63 +1,16 @@
 ---
-- name: Sprawdź obsługiwany system operacyjny
-  ansible.builtin.assert:
-    that:
-      - ansible_facts['distribution'] == 'Debian'
-    fail_msg: >-
-      Rola bootstrap obsługuje obecnie tylko Debian.
-      Wykryto: {{ ansible_facts['distribution'] }}
-
-- name: Sprawdź wymagane zmienne sieciowe
+- name: Sprawdź wymagane zmienne bootstrap
   ansible.builtin.assert:
     that:
       - bootstrap_ipv4_address is defined
-      - bootstrap_interface is defined
+      - bootstrap_ipv4_prefix is defined
       - bootstrap_ipv4_gateway is defined
       - bootstrap_dns_servers | length > 0
-    fail_msg: "Brak wymaganych zmiennych bootstrap dla hosta."
 
-- name: Skonfiguruj statyczny IPv4
-  ansible.builtin.template:
-    src: interfaces.j2
-    dest: /etc/network/interfaces
-    owner: root
-    group: root
-    mode: "0644"
-    backup: true
-  notify: Bootstrap configuration changed
+- name: Bootstrap Debian
+  ansible.builtin.include_tasks: debian.yml
+  when: ansible_facts['os_family'] == 'Debian'
 
-- name: Skonfiguruj wyłączenie IPv6
-  ansible.builtin.copy:
-    dest: /etc/sysctl.d/99-disable-ipv6.conf
-    owner: root
-    group: root
-    mode: "0644"
-    content: |
-      net.ipv6.conf.all.disable_ipv6 = 1
-      net.ipv6.conf.default.disable_ipv6 = 1
-      net.ipv6.conf.lo.disable_ipv6 = 1
-  when: bootstrap_disable_ipv6
-  notify: Bootstrap configuration changed
-
-- name: Skonfiguruj DNS
-  ansible.builtin.copy:
-    dest: /etc/resolv.conf
-    owner: root
-    group: root
-    mode: "0644"
-    content: |
-      {% for dns in bootstrap_dns_servers %}
-      nameserver {{ dns }}
-      {% endfor %}
-  notify: Bootstrap configuration changed
-
-- name: Wczytaj ustawienia sysctl
-  ansible.builtin.command:
-    cmd: sysctl --system
-  changed_when: false
-  when: bootstrap_disable_ipv6
-
-- name: Uruchom ponownie host
-  ansible.builtin.reboot:
-    reboot_timeout: 300
-  when: bootstrap_reboot
+- name: Bootstrap RedHat
+  ansible.builtin.include_tasks: redhat.yml
+  when: ansible_facts['os_family'] == 'RedHat'

@@ -1,5 +1,5 @@
 ---
-- name: Bootstrap świeżych hostów Debian
+- name: Bootstrap świeżych hostów Linux
   hosts: bootstrap
   become: true
   gather_facts: true

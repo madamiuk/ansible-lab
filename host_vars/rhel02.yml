@@ -1,0 +1,4 @@
+---
+bootstrap_ipv4_address: 192.168.64.22
+bootstrap_interface: enp0s1
+bootstrap_nm_connection: enp0s1
