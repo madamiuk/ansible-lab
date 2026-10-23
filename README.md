@@ -28,6 +28,7 @@ The repository currently provides automated provisioning workflows for:
 | PostgreSQL | `deploy-database.sh` | Database provisioning, access control, connectivity verification and monitoring |
 | Apache | `deploy-apache.sh` | Web server provisioning, HTTP verification and monitoring |
 | Tomcat | `deploy-tomcat.sh` | Java web application build, deployment, datasource integration, application verification and monitoring |
+| Host bootstrap | `bootstrap.yml` | Baseline network configuration, DNS and IPv6 policy for Debian and Red Hat-family systems |
 
 Each workflow is designed to be repeatable and idempotent.
 
@@ -248,6 +249,42 @@ http://HOST:8080/hello-tomcat/hello
 ```
 
 This verifies the deployed Jakarta Servlet and, because the servlet queries PostgreSQL through JNDI, exercises the application-to-database path as well.
+
+---
+
+## Host Bootstrap
+
+Fresh hosts can be normalized before application or service provisioning with:
+
+```bash
+ansible-playbook bootstrap.yml --limit <host>
+```
+
+The bootstrap role currently supports:
+
+- Debian 13 using `/etc/network/interfaces`
+- Red Hat-family systems using NetworkManager / `nmcli`
+
+The role configures:
+
+```text
+Static IPv4
+Default gateway
+DNS
+IPv6 policy
+```
+
+Per-host network values are stored in `host_vars/`. Example:
+
+```yaml
+bootstrap_ipv4_address: 192.168.64.28
+```
+
+Common defaults provide the prefix, gateway, DNS servers and interface defaults.
+
+The role is designed to be idempotent and was validated with repeated runs returning `changed=0` on Debian and RHEL hosts.
+
+For Red Hat-family systems, the NetworkManager profile is modified first and then activated by a controlled reboot, avoiding an unnecessary interruption of the active SSH session during configuration.
 
 ---
 
@@ -527,15 +564,20 @@ apache01
 
 [monitoring]
 oracle01
+
+[bootstrap]
+database02
+tomcat01
+rhel02
 ```
 
-Functional groups such as `[database]`, `[db_clients]`, `[apache]`, `[tomcat]`, `[wildfly]`, `[http_servers]` and `[monitoring]` describe infrastructure responsibilities independently of the Linux distribution.
+Functional groups such as `[database]`, `[db_clients]`, `[apache]`, `[tomcat]`, `[wildfly]`, `[http_servers]`, `[bootstrap]` and `[monitoring]` describe infrastructure responsibilities independently of the Linux distribution.
 
 ---
 
 ## Fresh Host Requirements
 
-A new LAB host requires only the minimum operating-system bootstrap:
+A new LAB host requires only the minimum initial operating-system access before the Ansible bootstrap can take over:
 
 - SSH connectivity
 - SSH public-key authentication
@@ -543,9 +585,8 @@ A new LAB host requires only the minimum operating-system bootstrap:
 - sudo privileges
 - Python 3
 - network connectivity
-- stable IPv4 addressing and DNS configuration
-- IPv6 disabled where required by the LAB baseline
 - inventory entry
+- per-host bootstrap variables
 - encrypted become password in Ansible Vault
 
 Example connectivity test:
@@ -558,6 +599,12 @@ Privilege escalation test:
 
 ```bash
 ansible apache01 -b -m ansible.builtin.command -a 'id'
+```
+
+After the host is reachable through Ansible, baseline network configuration can be applied with:
+
+```bash
+ansible-playbook bootstrap.yml --limit <host>
 ```
 
 For registered RHEL systems, roles can automatically configure additional repositories where required by installed components.
@@ -703,6 +750,7 @@ Main areas of the repository:
 │       └── vault.yml
 ├── roles/
 │   ├── apache/
+│   ├── bootstrap/
 │   ├── java/
 │   ├── postgresql/
 │   ├── tomcat/
@@ -712,6 +760,7 @@ Main areas of the repository:
 │   ├── nagios/
 │   ├── prometheus/
 │   └── grafana/
+├── bootstrap.yml
 ├── deploy-lab.sh
 ├── deploy-database.sh
 ├── deploy-apache.sh
@@ -780,6 +829,7 @@ The goal of the repository is to build practical experience with real System Eng
 Areas covered include:
 
 - Infrastructure as Code
+- host baseline automation
 - configuration management
 - repeatable server provisioning
 - application deployment
@@ -805,6 +855,9 @@ The LAB can currently automate four different infrastructure paths:
 ```text
 Fresh Linux VM
       |
+      v
+ Host bootstrap
+      |
       +----> WildFly + Java + Application
       |
       +----> PostgreSQL Database
@@ -828,6 +881,7 @@ with infrastructure state driven primarily from the Ansible inventory.
 Main entry points:
 
 ```bash
+ansible-playbook bootstrap.yml --limit <host>
 ./deploy-lab.sh <wildfly-host>
 ./deploy-database.sh <database-host>
 ./deploy-apache.sh <apache-host>
