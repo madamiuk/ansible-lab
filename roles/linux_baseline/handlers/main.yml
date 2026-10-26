@@ -3,3 +3,13 @@
   ansible.builtin.service:
     name: sshd
     state: restarted
+
+- name: Restart journald
+  ansible.builtin.service:
+    name: systemd-journald
+    state: restarted
+
+- name: Flush journald
+  ansible.builtin.command:
+    cmd: journalctl --flush
+  changed_when: false
