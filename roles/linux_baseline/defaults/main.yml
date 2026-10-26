@@ -34,3 +34,5 @@ linux_baseline_journald_storage: persistent
 linux_baseline_journald_compress: "yes"
 linux_baseline_journald_system_max_use: 500M
 linux_baseline_journald_runtime_max_use: 100M
+
+linux_baseline_manage_auditd: true

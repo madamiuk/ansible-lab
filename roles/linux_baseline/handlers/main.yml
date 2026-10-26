@@ -13,3 +13,8 @@
   ansible.builtin.command:
     cmd: journalctl --flush
   changed_when: false
+
+- name: Reload audit rules
+  ansible.builtin.command:
+    cmd: augenrules --load
+  changed_when: false

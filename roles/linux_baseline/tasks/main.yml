@@ -116,3 +116,26 @@
   notify:
     - Restart journald
     - Flush journald
+
+- name: Ensure auditd is installed
+  ansible.builtin.dnf:
+    name: audit
+    state: present
+  when: linux_baseline_manage_auditd
+
+- name: Ensure auditd is enabled and running
+  ansible.builtin.service:
+    name: auditd
+    state: started
+    enabled: true
+  when: linux_baseline_manage_auditd
+
+- name: Configure audit rules
+  ansible.builtin.template:
+    src: 10-ansible-audit.rules.j2
+    dest: /etc/audit/rules.d/10-ansible-audit.rules
+    owner: root
+    group: root
+    mode: "0600"
+  when: linux_baseline_manage_auditd
+  notify: Reload audit rules
