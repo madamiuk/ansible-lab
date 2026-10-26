@@ -17,3 +17,14 @@ linux_baseline_ssh_settings:
 
 linux_baseline_update_system: true
 linux_baseline_reboot_if_required: true
+
+linux_baseline_disable_rpcbind: false
+
+linux_baseline_manage_firewalld: true
+linux_baseline_firewalld_zone: public
+
+linux_baseline_firewalld_services:
+  - ssh
+
+linux_baseline_firewalld_disabled_services:
+  - dhcpv6-client

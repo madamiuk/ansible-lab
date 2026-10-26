@@ -36,3 +36,50 @@
     - linux_baseline_update_system
     - linux_baseline_reboot_if_required
     - linux_baseline_update_result.changed
+
+- name: Ensure firewalld is installed
+  ansible.builtin.dnf:
+    name: firewalld
+    state: present
+  when: linux_baseline_manage_firewalld
+
+- name: Ensure firewalld is enabled and running
+  ansible.builtin.service:
+    name: firewalld
+    state: started
+    enabled: true
+  when: linux_baseline_manage_firewalld
+
+- name: Allow required services in firewalld
+  ansible.posix.firewalld:
+    zone: "{{ linux_baseline_firewalld_zone }}"
+    service: "{{ item }}"
+    state: enabled
+    permanent: true
+    immediate: true
+  loop: "{{ linux_baseline_firewalld_services }}"
+  when: linux_baseline_manage_firewalld
+
+- name: Disable unnecessary services in firewalld
+  ansible.posix.firewalld:
+    zone: "{{ linux_baseline_firewalld_zone }}"
+    service: "{{ item }}"
+    state: disabled
+    permanent: true
+    immediate: true
+  loop: "{{ linux_baseline_firewalld_disabled_services }}"
+  when: linux_baseline_manage_firewalld
+
+- name: Stop and disable rpcbind socket
+  ansible.builtin.systemd:
+    name: rpcbind.socket
+    state: stopped
+    enabled: false
+  when: linux_baseline_disable_rpcbind
+
+- name: Stop and disable rpcbind service
+  ansible.builtin.systemd:
+    name: rpcbind.service
+    state: stopped
+    enabled: false
+  when: linux_baseline_disable_rpcbind
