@@ -1,0 +1,8 @@
+---
+- name: Baseline OCI hosts
+  hosts: oci
+  become: true
+  gather_facts: true
+
+  roles:
+    - linux_baseline

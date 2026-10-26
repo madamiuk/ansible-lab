@@ -1,0 +1,7 @@
+---
+linux_baseline_packages:
+  - vim
+  - git
+  - curl
+  - wget
+  - chrony
