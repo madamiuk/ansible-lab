@@ -10,3 +10,29 @@
     name: chronyd
     state: started
     enabled: true
+
+- name: Configure SSH hardening drop-in
+  ansible.builtin.template:
+    src: 10-ansible-hardening.conf.j2
+    dest: /etc/ssh/sshd_config.d/10-ansible-hardening.conf
+    owner: root
+    group: root
+    mode: "0600"
+  when: linux_baseline_manage_ssh
+  notify: Restart sshd
+
+- name: Update all installed packages
+  ansible.builtin.dnf:
+    name: "*"
+    state: latest
+    update_cache: true
+  when: linux_baseline_update_system
+  register: linux_baseline_update_result
+
+- name: Reboot host after package updates
+  ansible.builtin.reboot:
+    reboot_timeout: 600
+  when:
+    - linux_baseline_update_system
+    - linux_baseline_reboot_if_required
+    - linux_baseline_update_result.changed
