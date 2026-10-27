@@ -2,3 +2,18 @@
 wildfly_bind_address: 10.10.1.37
 wildfly_management_bind_address: 127.0.0.1
 wildfly_monitoring_source: 10.10.1.176/32
+
+# JobTracker PostgreSQL datasource
+wildfly_datasource_name: JobTrackerDS
+wildfly_datasource_jndi_name: java:/jdbc/JobTrackerDS
+
+wildfly_datasource_host: 10.10.1.26
+wildfly_datasource_port: 5432
+
+wildfly_datasource_min_pool_size: 1
+wildfly_datasource_max_pool_size: 5
+wildfly_datasource_jta: true
+
+postgresql_db_name: jobtracker
+postgresql_db_user: jobtracker
+postgresql_db_password: "{{ vault_jobtracker_db_password }}"
