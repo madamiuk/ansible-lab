@@ -1,6 +1,6 @@
 ---
 - name: Configure monitoring agent
-  hosts: appservers
+  hosts: monitored_hosts
   become: true
   gather_facts: true
 
