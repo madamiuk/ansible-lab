@@ -1,0 +1,8 @@
+---
+- name: Configure monitoring agent
+  hosts: appservers
+  become: true
+  gather_facts: true
+
+  roles:
+    - monitoring_agent

@@ -62,6 +62,15 @@
     mode: "0640"
   notify: Restart nagios
 
+- name: Configure Nagios NRPE command
+  ansible.builtin.template:
+    src: check_nrpe.cfg.j2
+    dest: /etc/nagios/conf.d/check_nrpe.cfg
+    owner: root
+    group: nagios
+    mode: "0640"
+  notify: Restart nagios
+
 - name: Ensure Apache is enabled and running
   ansible.builtin.service:
     name: httpd

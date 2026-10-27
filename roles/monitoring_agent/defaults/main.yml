@@ -1,0 +1,17 @@
+---
+monitoring_agent_epel_repo: ol9_developer_EPEL
+
+monitoring_agent_packages:
+  - nrpe
+  - nrpe-selinux
+  - nagios-plugins-disk
+  - nagios-plugins-load
+  - nagios-plugins-procs
+  - nagios-plugins-swap
+  - nagios-plugins-users
+
+monitoring_agent_allowed_hosts:
+  - 127.0.0.1
+  - 10.10.1.176
+
+monitoring_agent_nrpe_port: 5666

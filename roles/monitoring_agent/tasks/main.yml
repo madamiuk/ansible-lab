@@ -1,0 +1,47 @@
+---
+- name: Check whether Oracle EPEL repository is enabled
+  ansible.builtin.command:
+    cmd: dnf repolist --enabled
+  register: monitoring_agent_enabled_repos
+  changed_when: false
+
+- name: Enable Oracle Linux EPEL repository
+  ansible.builtin.command:
+    cmd: "dnf config-manager --set-enable {{ monitoring_agent_epel_repo }}"
+  when: monitoring_agent_epel_repo not in monitoring_agent_enabled_repos.stdout
+
+- name: Install NRPE and monitoring plugins
+  ansible.builtin.dnf:
+    name: "{{ monitoring_agent_packages }}"
+    state: present
+    update_cache: true
+
+- name: Configure NRPE allowed hosts
+  ansible.builtin.lineinfile:
+    path: /etc/nagios/nrpe.cfg
+    regexp: '^allowed_hosts='
+    line: "allowed_hosts={{ monitoring_agent_allowed_hosts | join(',') }}"
+  notify: Restart nrpe
+
+- name: Configure NRPE monitoring checks
+  ansible.builtin.template:
+    src: 10-ansible-checks.cfg.j2
+    dest: /etc/nrpe.d/10-ansible-checks.cfg
+    owner: root
+    group: nrpe
+    mode: "0640"
+  notify: Restart nrpe
+
+- name: Allow NRPE from Nagios server
+  ansible.posix.firewalld:
+    zone: public
+    rich_rule: 'rule family="ipv4" source address="10.10.1.176/32" port port="5666" protocol="tcp" accept'
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Ensure NRPE is enabled and running
+  ansible.builtin.service:
+    name: nrpe
+    state: started
+    enabled: true
