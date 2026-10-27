@@ -1,0 +1,22 @@
+# Managed by Ansible
+
+define host {
+    use                     linux-server
+    host_name               oci-ansible01
+    alias                   OCI Ansible Application Server
+    address                 10.10.1.37
+}
+
+define service {
+    use                     generic-service
+    host_name               oci-ansible01
+    service_description     PING
+    check_command           check_ping!100.0,20%!500.0,60%
+}
+
+define service {
+    use                     generic-service
+    host_name               oci-ansible01
+    service_description     SSH
+    check_command           check_ssh
+}

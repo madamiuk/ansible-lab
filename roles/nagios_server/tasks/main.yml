@@ -38,6 +38,30 @@
     line: '    check_command           check_http!-u /nagios/ -e 401'
   notify: Restart nagios
 
+- name: Ensure Nagios custom configuration directory exists
+  ansible.builtin.file:
+    path: /etc/nagios/conf.d
+    state: directory
+    owner: root
+    group: nagios
+    mode: "0750"
+
+- name: Include custom Nagios configuration directory
+  ansible.builtin.lineinfile:
+    path: /etc/nagios/nagios.cfg
+    regexp: '^cfg_dir=/etc/nagios/conf\.d$'
+    line: 'cfg_dir=/etc/nagios/conf.d'
+  notify: Restart nagios
+
+- name: Configure OCI application host in Nagios
+  ansible.builtin.template:
+    src: oci-ansible01.cfg.j2
+    dest: /etc/nagios/conf.d/oci-ansible01.cfg
+    owner: root
+    group: nagios
+    mode: "0640"
+  notify: Restart nagios
+
 - name: Ensure Apache is enabled and running
   ansible.builtin.service:
     name: httpd
