@@ -1,0 +1,66 @@
+---
+- name: Build and deploy JobTracker
+  hosts: appservers
+  become: true
+  gather_facts: true
+
+  vars:
+    jobtracker_project_dir: /Users/ma/jobtracker
+
+    wildfly_app_name: jobtracker
+    wildfly_war_source: "{{ jobtracker_project_dir }}/target/jobtracker.war"
+
+    wildfly_required_war_entries:
+      - WEB-INF/
+      - WEB-INF/classes/META-INF/persistence.xml
+      - WEB-INF/classes/pl/jobtracker/config/RestApplication.class
+      - WEB-INF/classes/pl/jobtracker/rest/HealthResource.class
+
+    wildfly_build_info_required: false
+
+  pre_tasks:
+    - name: Build JobTracker WAR locally
+      ansible.builtin.command:
+        argv:
+          - mvn
+          - clean
+          - package
+      args:
+        chdir: "{{ jobtracker_project_dir }}"
+      environment:
+        JAVA_HOME: /opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+        PATH: "/opt/homebrew/opt/openjdk@21/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+      delegate_to: localhost
+      become: false
+      run_once: true
+      changed_when: true
+
+  tasks:
+    - name: JobTracker deployment preflight
+      ansible.builtin.include_role:
+        name: wildfly
+        tasks_from: preflight.yml
+
+    - name: Deploy JobTracker WAR
+      ansible.builtin.include_role:
+        name: wildfly
+        tasks_from: deploy.yml
+
+  post_tasks:
+    - name: Verify JobTracker health endpoint
+      ansible.builtin.uri:
+        url: "http://{{ wildfly_bind_address }}:8080/jobtracker/api/health"
+        method: GET
+        return_content: true
+        status_code: 200
+      register: jobtracker_health
+      changed_when: false
+
+    - name: Confirm JobTracker application health
+      ansible.builtin.assert:
+        that:
+          - jobtracker_health.status == 200
+          - '"JobTracker" in jobtracker_health.content'
+          - '"UP" in jobtracker_health.content'
+        success_msg: "JobTracker został poprawnie wdrożony i działa."
+        fail_msg: "JobTracker został wdrożony, ale test health endpoint nie przeszedł."

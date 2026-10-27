@@ -15,7 +15,7 @@
   tags:
     - deploy
 
-- name: Wdróż aplikację hello-wildfly
+- name: Wdróż aplikację {{ wildfly_app_name }}
   ansible.builtin.copy:
     src: "{{ wildfly_war_source }}"
     dest: "{{ wildfly_deployments_dir }}/{{ wildfly_app_name }}.war"
@@ -241,6 +241,8 @@
     owner: "{{ wildfly_user }}"
     group: "{{ wildfly_group }}"
     mode: '0644'
-  when: not ansible_check_mode
+  when:
+  - not ansible_check_mode
+  - wildfly_build_info_required | bool
   tags:
     - deploy
