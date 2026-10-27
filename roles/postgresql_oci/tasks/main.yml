@@ -43,6 +43,17 @@
     state: present
   notify: Restart PostgreSQL
 
+- name: Configure JobTracker local SSH tunnel access in pg_hba.conf
+  community.postgresql.postgresql_pg_hba:
+    dest: "{{ postgresql_oci_hba_file }}"
+    contype: host
+    databases: "{{ postgresql_oci_db_name }}"
+    users: "{{ postgresql_oci_db_user }}"
+    address: 127.0.0.1/32
+    method: scram-sha-256
+    state: present
+  notify: Restart PostgreSQL
+
 - name: Allow PostgreSQL from OCI application server
   ansible.posix.firewalld:
     rich_rule: >-
