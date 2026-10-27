@@ -1,0 +1,77 @@
+---
+- name: Check enabled PostgreSQL module stream
+  ansible.builtin.command:
+    cmd: dnf module list postgresql --enabled
+  register: postgresql_oci_module_status
+  changed_when: false
+
+- name: Enable PostgreSQL module stream
+  ansible.builtin.command:
+    cmd: "dnf module enable -y postgresql:{{ postgresql_oci_module_stream }}"
+  when: postgresql_oci_module_stream not in postgresql_oci_module_status.stdout
+
+- name: Install PostgreSQL packages
+  ansible.builtin.dnf:
+    name: "{{ postgresql_oci_packages }}"
+    state: present
+
+- name: Check whether PostgreSQL cluster is initialized
+  ansible.builtin.stat:
+    path: "{{ postgresql_oci_data_dir }}/PG_VERSION"
+  register: postgresql_oci_pg_version
+
+- name: Initialize PostgreSQL database cluster
+  ansible.builtin.command:
+    cmd: postgresql-setup --initdb
+  when: not postgresql_oci_pg_version.stat.exists
+
+- name: Configure PostgreSQL listen addresses
+  ansible.builtin.lineinfile:
+    path: "{{ postgresql_oci_config_file }}"
+    regexp: "^#?listen_addresses\\s*="
+    line: "listen_addresses = '{{ postgresql_oci_listen_addresses | join(',') }}'"
+  notify: Restart PostgreSQL
+
+- name: Configure JobTracker access in pg_hba.conf
+  community.postgresql.postgresql_pg_hba:
+    dest: "{{ postgresql_oci_hba_file }}"
+    contype: host
+    databases: "{{ postgresql_oci_db_name }}"
+    users: "{{ postgresql_oci_db_user }}"
+    address: "{{ postgresql_oci_allowed_host }}"
+    method: scram-sha-256
+    state: present
+  notify: Restart PostgreSQL
+
+- name: Allow PostgreSQL from OCI application server
+  ansible.posix.firewalld:
+    rich_rule: >-
+      rule family="ipv4"
+      source address="{{ postgresql_oci_allowed_host }}"
+      port port="{{ postgresql_oci_port }}" protocol="tcp"
+      accept
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Create JobTracker PostgreSQL user
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    name: "{{ postgresql_oci_db_user }}"
+    password: "{{ postgresql_oci_db_password }}"
+    role_attr_flags: LOGIN
+    state: present
+  no_log: true
+
+- name: Create JobTracker database
+  become_user: postgres
+  community.postgresql.postgresql_db:
+    name: "{{ postgresql_oci_db_name }}"
+    owner: "{{ postgresql_oci_db_user }}"
+    state: present
+
+- name: Ensure PostgreSQL is enabled and running
+  ansible.builtin.service:
+    name: "{{ postgresql_oci_service }}"
+    enabled: true
+    state: started

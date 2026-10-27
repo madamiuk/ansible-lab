@@ -1,0 +1,23 @@
+---
+postgresql_oci_module_stream: "18"
+
+postgresql_oci_packages:
+  - postgresql
+  - postgresql-server
+  - python3-psycopg2
+
+postgresql_oci_service: postgresql
+postgresql_oci_data_dir: /var/lib/pgsql/data
+postgresql_oci_config_file: /var/lib/pgsql/data/postgresql.conf
+postgresql_oci_hba_file: /var/lib/pgsql/data/pg_hba.conf
+
+postgresql_oci_listen_addresses:
+  - 127.0.0.1
+  - 10.10.1.26
+
+postgresql_oci_allowed_host: 10.10.1.37/32
+postgresql_oci_port: 5432
+
+postgresql_oci_db_name: jobtracker
+postgresql_oci_db_user: jobtracker
+postgresql_oci_db_password: "{{ vault_jobtracker_db_password }}"

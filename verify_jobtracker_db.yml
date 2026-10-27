@@ -1,0 +1,34 @@
+---
+- name: Verify JobTracker PostgreSQL connection
+  hosts: oci-ansible01
+  gather_facts: false
+
+  tasks:
+    - name: Test JobTracker database authentication
+      ansible.builtin.command:
+        argv:
+          - psql
+          - --no-password
+          - --host=10.10.1.26
+          - --port=5432
+          - --username=jobtracker
+          - --dbname=jobtracker
+          - --tuples-only
+          - --no-align
+          - --command=SELECT current_database() || '|' || current_user;
+      environment:
+        PGPASSWORD: "{{ vault_jobtracker_db_password }}"
+      register: jobtracker_db_test
+      changed_when: false
+      failed_when: false
+      no_log: true
+
+    - name: Confirm JobTracker database connection
+      ansible.builtin.debug:
+        msg: "PostgreSQL authentication OK: {{ jobtracker_db_test.stdout | trim }}"
+      when: jobtracker_db_test.rc == 0
+
+    - name: Fail when JobTracker database connection does not work
+      ansible.builtin.fail:
+        msg: "PostgreSQL authentication from oci-ansible01 to oci-ansible03 failed."
+      when: jobtracker_db_test.rc != 0

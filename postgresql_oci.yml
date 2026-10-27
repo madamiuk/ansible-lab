@@ -1,0 +1,8 @@
+---
+- name: Configure PostgreSQL on OCI
+  hosts: oci_database
+  become: true
+  gather_facts: true
+
+  roles:
+    - postgresql_oci
