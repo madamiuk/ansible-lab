@@ -1,0 +1,12 @@
+---
+- name: Deploy WildFly on OCI application server
+  hosts: appservers
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: java
+      tags:
+        - install
+
+    - role: wildfly

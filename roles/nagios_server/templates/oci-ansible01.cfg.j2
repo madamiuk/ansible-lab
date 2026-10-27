@@ -48,3 +48,10 @@ define service {
     service_description     Processes
     check_command           check_nrpe!check_total_procs
 }
+
+define service {
+    use                     generic-service
+    host_name               oci-ansible01
+    service_description     WildFly HTTP
+    check_command           check_http!-p 8080 -u /
+}

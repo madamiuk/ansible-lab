@@ -1,0 +1,43 @@
+---
+- name: Sprawdź wymagane zmienne datasource
+  ansible.builtin.assert:
+    that:
+      - wildfly_datasource_name is defined
+      - wildfly_datasource_name | length > 0
+      - wildfly_datasource_jndi_name is defined
+      - wildfly_datasource_jndi_name | length > 0
+      - wildfly_datasource_host is defined
+      - wildfly_datasource_host | length > 0
+      - postgresql_db_name is defined
+      - postgresql_db_name | length > 0
+      - postgresql_db_user is defined
+      - postgresql_db_user | length > 0
+      - postgresql_db_password is defined
+      - postgresql_db_password | length > 0
+    fail_msg: "Brakuje wymaganej zmiennej datasource."
+    success_msg: "Zmienne datasource są poprawnie zdefiniowane."
+
+- name: Sprawdź poprawność parametrów datasource
+  ansible.builtin.assert:
+    that:
+      - wildfly_datasource_port | int >= 1
+      - wildfly_datasource_port | int <= 65535
+      - wildfly_datasource_min_pool_size | int >= 0
+      - wildfly_datasource_max_pool_size | int > 0
+      - wildfly_datasource_min_pool_size | int <= wildfly_datasource_max_pool_size | int
+      - wildfly_datasource_jndi_name is match('^java:(/|jboss/)')
+    fail_msg: "Parametry datasource mają niepoprawne wartości."
+    success_msg: "Parametry datasource mają poprawne wartości."
+
+- name: Sprawdź dostępność PostgreSQL z hosta WildFly
+  ansible.builtin.wait_for:
+    host: "{{ wildfly_datasource_host }}"
+    port: "{{ wildfly_datasource_port }}"
+    connect_timeout: 3
+    timeout: 5
+    state: started
+    msg: >-
+      PostgreSQL {{ wildfly_datasource_host }}:{{ wildfly_datasource_port }}
+      jest nieosiągalny z hosta {{ inventory_hostname }}.
+  changed_when: false
+  when: not ansible_check_mode

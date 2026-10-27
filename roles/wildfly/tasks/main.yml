@@ -1,5 +1,5 @@
 ---
-- name: Walidacja wymaganych zmiennych
+- name: Walidacja podstawowa WildFly
   ansible.builtin.import_tasks: validate.yml
   tags:
     - always
@@ -13,6 +13,14 @@
   ansible.builtin.import_tasks: service.yml
   tags:
     - service
+
+- name: Walidacja datasource PostgreSQL
+  ansible.builtin.import_tasks: validate_datasource.yml
+  tags:
+    - jdbc
+    - datasource
+    - deploy
+    - verify
 
 - name: Zadania JDBC PostgreSQL
   ansible.builtin.import_tasks: jdbc.yml

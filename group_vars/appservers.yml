@@ -1,0 +1,4 @@
+---
+wildfly_bind_address: 10.10.1.37
+wildfly_management_bind_address: 127.0.0.1
+wildfly_monitoring_source: 10.10.1.176/32
