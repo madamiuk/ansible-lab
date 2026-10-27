@@ -54,11 +54,33 @@
     state: present
   notify: Restart PostgreSQL
 
+- name: Configure Nagios monitoring access in pg_hba.conf
+  community.postgresql.postgresql_pg_hba:
+    dest: "{{ postgresql_oci_hba_file }}"
+    contype: host
+    databases: "{{ postgresql_oci_db_name }}"
+    users: "{{ postgresql_oci_monitoring_user }}"
+    address: "{{ postgresql_oci_monitoring_host }}"
+    method: scram-sha-256
+    state: present
+  notify: Restart PostgreSQL
+
 - name: Allow PostgreSQL from OCI application server
   ansible.posix.firewalld:
     rich_rule: >-
       rule family="ipv4"
       source address="{{ postgresql_oci_allowed_host }}"
+      port port="{{ postgresql_oci_port }}" protocol="tcp"
+      accept
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Allow PostgreSQL from Nagios monitoring server
+  ansible.posix.firewalld:
+    rich_rule: >-
+      rule family="ipv4"
+      source address="{{ postgresql_oci_monitoring_host }}"
       port port="{{ postgresql_oci_port }}" protocol="tcp"
       accept
     permanent: true
@@ -74,11 +96,30 @@
     state: present
   no_log: true
 
+- name: Create Nagios PostgreSQL monitoring user
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    name: "{{ postgresql_oci_monitoring_user }}"
+    password: "{{ postgresql_oci_monitoring_password }}"
+    role_attr_flags: LOGIN
+    state: present
+  no_log: true
+
 - name: Create JobTracker database
   become_user: postgres
   community.postgresql.postgresql_db:
     name: "{{ postgresql_oci_db_name }}"
     owner: "{{ postgresql_oci_db_user }}"
+    state: present
+
+- name: Grant Nagios monitoring user CONNECT to JobTracker database
+  become_user: postgres
+  community.postgresql.postgresql_privs:
+    database: postgres
+    type: database
+    objs: "{{ postgresql_oci_db_name }}"
+    roles: "{{ postgresql_oci_monitoring_user }}"
+    privs: CONNECT
     state: present
 
 - name: Ensure PostgreSQL is enabled and running

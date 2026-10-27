@@ -21,3 +21,7 @@ postgresql_oci_port: 5432
 postgresql_oci_db_name: jobtracker
 postgresql_oci_db_user: jobtracker
 postgresql_oci_db_password: "{{ vault_jobtracker_db_password }}"
+
+postgresql_oci_monitoring_host: 10.10.1.176/32
+postgresql_oci_monitoring_user: nagios_monitor
+postgresql_oci_monitoring_password: "{{ vault_nagios_monitor_db_password }}"

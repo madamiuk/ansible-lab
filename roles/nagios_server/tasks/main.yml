@@ -71,6 +71,39 @@
     mode: "0640"
   notify: Restart nagios
 
+- name: Configure PostgreSQL check credentials
+  ansible.builtin.template:
+    src: check_pgsql.ini.j2
+    dest: /etc/nagios/check_pgsql.ini
+    owner: root
+    group: nagios
+    mode: "0640"
+  no_log: true
+  notify: Restart nagios
+
+- name: Configure Nagios PostgreSQL command
+  ansible.builtin.template:
+    src: check_pgsql.cfg.j2
+    dest: /etc/nagios/conf.d/check_pgsql.cfg
+    owner: root
+    group: nagios
+    mode: "0640"
+  notify: Restart nagios
+
+- name: Configure OCI PostgreSQL host in Nagios
+  ansible.builtin.template:
+    src: oci-ansible03.cfg.j2
+    dest: /etc/nagios/conf.d/oci-ansible03.cfg
+    owner: root
+    group: nagios
+    mode: "0640"
+  notify: Restart nagios
+
+- name: Validate Nagios configuration
+  ansible.builtin.command:
+    cmd: nagios -v /etc/nagios/nagios.cfg
+  changed_when: false
+
 - name: Ensure Apache is enabled and running
   ansible.builtin.service:
     name: httpd
