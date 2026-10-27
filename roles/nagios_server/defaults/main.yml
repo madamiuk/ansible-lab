@@ -1,0 +1,23 @@
+---
+nagios_server_epel_repo: ol9_developer_EPEL
+
+nagios_server_packages:
+  - nagios
+  - httpd
+  - httpd-tools
+  - php
+  - php-cli
+  - php-gd
+  - python3-passlib
+  - nagios-plugins-disk
+  - nagios-plugins-http
+  - nagios-plugins-load
+  - nagios-plugins-ping
+  - nagios-plugins-procs
+  - nagios-plugins-ssh
+  - nagios-plugins-swap
+  - nagios-plugins-users
+  - nagios-plugins-nrpe
+
+nagios_server_admin_user: nagiosadmin
+nagios_server_admin_password: "{{ vault_nagios_admin_password }}"

@@ -1,0 +1,8 @@
+---
+- name: Configure Nagios monitoring server
+  hosts: nagios_server
+  become: true
+  gather_facts: true
+
+  roles:
+    - nagios_server

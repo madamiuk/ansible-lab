@@ -1,0 +1,51 @@
+---
+- name: Check whether Oracle EPEL repository is enabled
+  ansible.builtin.command:
+    cmd: dnf repolist --enabled
+  register: nagios_server_enabled_repos
+  changed_when: false
+
+- name: Enable Oracle Linux EPEL repository
+  ansible.builtin.command:
+    cmd: "dnf config-manager --set-enable {{ nagios_server_epel_repo }}"
+  when: nagios_server_epel_repo not in nagios_server_enabled_repos.stdout
+
+- name: Install Nagios server packages
+  ansible.builtin.dnf:
+    name: "{{ nagios_server_packages }}"
+    state: present
+    update_cache: true
+
+- name: Install Apache password utility
+  ansible.builtin.dnf:
+    name: httpd-tools
+    state: present
+
+- name: Configure Nagios web administrator
+  community.general.htpasswd:
+    path: /etc/nagios/passwd
+    name: "{{ nagios_server_admin_user }}"
+    password: "{{ nagios_server_admin_password }}"
+    owner: root
+    group: apache
+    mode: "0640"
+  no_log: true
+
+- name: Configure Nagios localhost HTTP check
+  ansible.builtin.lineinfile:
+    path: /etc/nagios/objects/localhost.cfg
+    regexp: '^\s*check_command\s+check_http\s*$'
+    line: '    check_command           check_http!-u /nagios/ -e 401'
+  notify: Restart nagios
+
+- name: Ensure Apache is enabled and running
+  ansible.builtin.service:
+    name: httpd
+    state: started
+    enabled: true
+
+- name: Ensure Nagios is enabled and running
+  ansible.builtin.service:
+    name: nagios
+    state: started
+    enabled: true
