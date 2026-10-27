@@ -29,13 +29,27 @@
   when: linux_baseline_update_system
   register: linux_baseline_update_result
 
-- name: Reboot host after package updates
+- name: Get running kernel
+  ansible.builtin.command:
+    cmd: uname -r
+  register: linux_baseline_running_kernel
+  changed_when: false
+  when: linux_baseline_update_system
+
+- name: Get latest installed kernel
+  ansible.builtin.shell:
+    cmd: "rpm -q --last kernel-uek | head -1 | awk '{print $1}' | sed 's/^kernel-uek-//'"
+  register: linux_baseline_latest_kernel
+  changed_when: false
+  when: linux_baseline_update_system
+
+- name: Reboot host after kernel update
   ansible.builtin.reboot:
     reboot_timeout: 600
   when:
     - linux_baseline_update_system
     - linux_baseline_reboot_if_required
-    - linux_baseline_update_result.changed
+    - linux_baseline_running_kernel.stdout != linux_baseline_latest_kernel.stdout
 
 - name: Ensure firewalld is installed
   ansible.builtin.dnf:
@@ -139,3 +153,13 @@
     mode: "0600"
   when: linux_baseline_manage_auditd
   notify: Reload audit rules
+
+- name: Apply sysctl hardening
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/99-ansible-hardening.conf
+    state: present
+    reload: true
+  loop: "{{ linux_baseline_sysctl | dict2items }}"
+  when: linux_baseline_manage_sysctl
