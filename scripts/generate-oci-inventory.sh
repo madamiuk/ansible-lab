@@ -21,17 +21,8 @@ output_file = sys.argv[2]
 with open(json_file, encoding="utf-8") as f:
     hosts = json.load(f)
 
-required_hosts = {
-    "oci-ansible01",
-    "oci-ansible02",
-    "oci-ansible03",
-}
-
-missing = required_hosts - set(hosts)
-if missing:
-    raise SystemExit(
-        "ERROR: Missing Terraform hosts: " + ", ".join(sorted(missing))
-    )
+if not hosts:
+    raise SystemExit("ERROR: Terraform returned no Ansible hosts")
 
 groups = defaultdict(list)
 
