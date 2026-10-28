@@ -1,272 +1,635 @@
 # Ansible Infrastructure & CI/CD Lab
 
 [![Ansible CI](https://github.com/madamiuk/ansible-lab/actions/workflows/ansible-ci.yml/badge.svg)](https://github.com/madamiuk/ansible-lab/actions/workflows/ansible-ci.yml)
-Hands-on infrastructure automation lab built around **Ansible**, **Linux**, **WildFly**, **Tomcat**, **PostgreSQL**, **Apache**, **GitHub Actions** and a monitoring stack based on **Nagios**, **Prometheus** and **Grafana**.
 
-The project focuses on practical System Engineering and DevOps workflows:
+Hands-on infrastructure automation lab built around **Ansible**, **Linux**, **Oracle Cloud Infrastructure**, **WildFly**, **Tomcat**, **PostgreSQL**, **Apache**, **GitHub Actions** and monitoring based on **Nagios**, **Prometheus** and **Grafana**.
 
-- provisioning fresh Linux hosts
+The project focuses on practical System Engineering, Infrastructure as Code and DevOps workflows:
+
+- Linux host provisioning
 - configuration management
-- application and service deployment
+- application deployment
 - database connectivity
 - secrets management
+- CI/CD
 - deployment verification
-- monitoring onboarding
+- artifact integrity
+- rollback
+- monitoring
 - idempotency
 - troubleshooting real infrastructure dependencies
 
-The LAB is developed incrementally. New virtual machines are deliberately introduced as fresh systems to expose hidden assumptions and improve automation until hosts can be onboarded predictably.
+The LAB is developed incrementally and is used to validate automation against both local virtual machines and Oracle Cloud Infrastructure.
 
 ---
 
-## Current Capabilities
+## Current Architecture
 
-The repository currently provides automated provisioning workflows for:
+The current environment combines three independent repositories:
 
-| Platform | Entry point | Purpose |
-|---|---|---|
-| WildFly | `deploy-lab.sh` | Java application platform, datasource, WAR deployment and monitoring |
-| PostgreSQL | `deploy-database.sh` | Database provisioning, access control, connectivity verification and monitoring |
-| Apache | `deploy-apache.sh` | Web server provisioning, HTTP verification and monitoring |
-| Tomcat | `deploy-tomcat.sh` | Java web application build, deployment, datasource integration, application verification and monitoring |
-| Host bootstrap | `bootstrap.yml` | Baseline network configuration, DNS and IPv6 policy for Debian and Red Hat-family systems |
+```text
+oci-terraform-lab
+        |
+        +--> Terraform
+        +--> OCI infrastructure
+        |
+        v
+Oracle Cloud Infrastructure
+        |
+        +--> oci-ansible01
+        |       WildFly
+        |       JobTracker
+        |
+        +--> oci-ansible02
+        |       Nagios
+        |
+        +--> oci-ansible03
+                PostgreSQL 18
 
-Each workflow is designed to be repeatable and idempotent.
+ansible-lab
+        |
+        +--> Linux configuration
+        +--> WildFly
+        +--> PostgreSQL
+        +--> Nagios
+        +--> deployment
+        +--> runtime verification
+
+jobtracker
+        |
+        +--> Java 21
+        +--> Jakarta EE
+        +--> REST API
+        +--> JPA / Hibernate
+        +--> Maven
+        +--> GitHub Actions
+        +--> WAR artifact
+```
+
+Responsibilities are intentionally separated.
+
+```text
+Terraform  -> infrastructure
+Ansible    -> configuration and deployment
+JobTracker -> application code and build
+```
 
 ---
 
-## One-command Provisioning
+## OCI Environment
 
-### WildFly application host
-
-```bash
-./deploy-lab.sh rhel02
-```
-
-The workflow performs:
+The OCI environment currently contains three Oracle Linux hosts.
 
 ```text
-Host validation
-      |
-      v
-SSH / Ansible connectivity
-      |
-      v
-Privilege escalation check
-      |
-      v
-Generate build metadata
-      |
-      v
-Maven build + tests
-      |
-      v
-WAR validation
-      |
-      v
-Java provisioning
-      |
-      v
-WildFly provisioning
-      |
-      v
-PostgreSQL JDBC datasource
-      |
-      v
-Datasource connectivity test
-      |
-      v
-WAR deployment
-      |
-      v
-Deployment verification
-      |
-      v
-SHA-256 verification
-      |
-      v
-Monitoring onboarding
-      |
-      +-------------------+
-      |                   |
-      v                   v
-    Nagios            Prometheus
-                          |
-                          v
-                        Grafana
+oci-ansible01
+    |
+    +--> Oracle Linux 9
+    +--> Java 21
+    +--> WildFly
+    +--> JobTracker
+
+oci-ansible02
+    |
+    +--> Oracle Linux 9
+    +--> Nagios
+
+oci-ansible03
+    |
+    +--> Oracle Linux 9
+    +--> PostgreSQL 18
+    +--> jobtracker database
 ```
 
-### PostgreSQL database host
+Application traffic between WildFly and PostgreSQL uses the private OCI network.
 
-```bash
-./deploy-database.sh database02
-```
+PostgreSQL runs on a dedicated database host and is not installed locally on the WildFly server.
 
-The workflow performs:
+---
+
+## CI Status
+
+The environment currently uses three independent CI pipelines.
 
 ```text
-Host validation
-      |
-      v
-SSH / Ansible connectivity
-      |
-      v
-Privilege escalation check
-      |
-      v
-Ansible syntax validation
-      |
-      v
-PostgreSQL installation
-      |
-      v
-Database + user provisioning
-      |
-      v
-listen_addresses configuration
-      |
-      v
-Declarative pg_hba.conf
-      |
-      v
-Local service verification
-      |
-      v
-Remote psql connection test
-      |
-      v
-Monitoring onboarding
+Terraform CI   OK
+Ansible CI     OK
+JobTracker CI  OK
 ```
 
-Remote PostgreSQL access is generated dynamically from the Ansible inventory.
+Each pipeline validates a different layer.
 
-Hosts allowed to connect to the application database belong to:
+```text
+Terraform CI
+      |
+      +--> terraform fmt
+      +--> terraform init
+      +--> terraform validate
+
+Ansible CI
+      |
+      +--> Bash syntax
+      +--> inventory validation
+      +--> collection dependencies
+      +--> playbook syntax checks
+
+JobTracker CI
+      |
+      +--> Java 21
+      +--> Maven
+      +--> mvn clean verify
+      +--> WAR validation
+      +--> GitHub Actions artifact
+```
+
+---
+
+## JobTracker Deployment
+
+JobTracker is deployed to WildFly on OCI using a WAR artifact generated by the independent `jobtracker` repository.
+
+The complete deployment path is:
+
+```text
+Git push
+    |
+    v
+JobTracker CI
+    |
+    v
+Java 21
+    |
+    v
+mvn clean verify
+    |
+    v
+jobtracker.war
+    |
+    v
+GitHub Actions artifact
+jobtracker-war
+    |
+    v
+deploy-jobtracker-artifact.sh
+    |
+    v
+Ansible
+    |
+    v
+oci-ansible01
+WildFly
+    |
+    | JDBC
+    v
+oci-ansible03
+PostgreSQL 18
+    |
+    v
+REST health verification
+```
+
+The main deployment wrapper is:
+
+```bash
+./scripts/deploy-jobtracker-artifact.sh
+```
+
+The wrapper:
+
+```text
+Finds the newest successful JobTracker CI run
+        |
+        v
+Downloads jobtracker-war
+        |
+        v
+Verifies WAR contents
+        |
+        v
+Calculates SHA-256
+        |
+        v
+Runs jobtracker_deploy.yml
+        |
+        v
+Validates JobTrackerDS
+        |
+        v
+Deploys WAR to WildFly
+        |
+        v
+Verifies remote SHA-256
+        |
+        v
+Checks /jobtracker/api/health
+```
+
+The downloaded CI artifacts are stored locally under:
+
+```text
+artifacts/jobtracker/
+```
+
+This directory is excluded from Git.
+
+---
+
+## JobTracker Deployment Modes
+
+The deployment playbook supports two modes.
+
+### Local development mode
+
+```bash
+ansible-playbook jobtracker_deploy.yml
+```
+
+In this mode Ansible builds the application locally using Maven before deployment.
+
+The local project directory is:
+
+```text
+/Users/ma/jobtracker
+```
+
+The resulting artifact is:
+
+```text
+/Users/ma/jobtracker/target/jobtracker.war
+```
+
+### Prebuilt artifact mode
+
+```bash
+ansible-playbook jobtracker_deploy.yml \
+  -e jobtracker_build_local=false \
+  -e wildfly_war_source=/path/to/jobtracker.war
+```
+
+In this mode Ansible does not build the application.
+
+A previously built WAR is validated and deployed directly.
+
+This is the mode used by:
+
+```bash
+./scripts/deploy-jobtracker-artifact.sh
+```
+
+---
+
+## JobTracker Runtime
+
+JobTracker currently runs on:
+
+```text
+Host:        oci-ansible01
+Platform:    WildFly
+Application: jobtracker
+```
+
+Datasource configuration:
+
+```text
+Datasource: JobTrackerDS
+JNDI:       java:/jdbc/JobTrackerDS
+```
+
+Database:
+
+```text
+Host:     oci-ansible03
+Database: jobtracker
+User:     jobtracker
+```
+
+Health endpoint:
+
+```text
+http://10.10.1.37:8080/jobtracker/api/health
+```
+
+A successful response confirms that the application is deployed and responding through WildFly.
+
+---
+
+## WildFly Deployment Safety
+
+The WildFly deployment process contains several safeguards.
+
+Before deployment Ansible verifies:
+
+- WAR exists
+- WAR is a regular non-empty file
+- WAR is a valid ZIP/WAR archive
+- required classes and files exist
+- datasource is available
+- PostgreSQL connectivity through WildFly succeeds
+
+The JobTracker deployment requires at least:
+
+```text
+WEB-INF/
+WEB-INF/classes/META-INF/persistence.xml
+WEB-INF/classes/pl/jobtracker/config/RestApplication.class
+WEB-INF/classes/pl/jobtracker/rest/HealthResource.class
+```
+
+---
+
+## Artifact Integrity
+
+Before deployment Ansible calculates the SHA-256 checksum of the source WAR.
+
+After the artifact is copied to WildFly, its SHA-256 checksum is calculated again.
+
+The deployment is accepted only if both checksums match.
+
+Example flow:
+
+```text
+GitHub artifact
+      |
+      v
+local WAR SHA-256
+      |
+      v
+Ansible copy
+      |
+      v
+remote WAR SHA-256
+      |
+      v
+checksum comparison
+```
+
+The final checksum is stored alongside the deployed application.
+
+---
+
+## Automatic Rollback
+
+Before replacing an existing WAR, Ansible creates a backup.
+
+WildFly deployment markers are monitored:
+
+```text
+.war.deployed
+.war.failed
+```
+
+If WildFly reports a failed deployment:
+
+```text
+new WAR
+   |
+   v
+deployment failure
+   |
+   v
+restore previous WAR
+   |
+   v
+.dodeploy
+   |
+   v
+verify rollback
+```
+
+Older backups are rotated.
+
+---
+
+## Idempotency
+
+Idempotency is treated as a core requirement.
+
+Running the same automation repeatedly should not introduce unnecessary changes.
+
+For example, deploying an artifact identical to the WAR already installed on WildFly results in:
+
+```text
+oci-ansible01 : ok=19 changed=0 unreachable=0 failed=0
+```
+
+This confirms that the artifact deployment flow remains idempotent.
+
+---
+
+## Inventory Design
+
+The inventory is split between local virtual machines and OCI.
+
+```text
+inventory/
+├── notebook.ini
+└── oci.ini
+```
+
+`notebook.ini` contains local LAB systems.
+
+`oci.ini` is generated from Terraform outputs.
+
+The OCI inventory currently contains:
 
 ```ini
-[db_clients]
-debian01
-debian02
-rhel01
-rhel02
-tomcat01
+[oci]
+oci-ansible01
+oci-ansible02
+oci-ansible03
+
+[appservers]
+oci-ansible01
+
+[nagios_server]
+oci-ansible02
+
+[oci_database]
+oci-ansible03
+
+[monitored_hosts]
+oci-ansible01
+oci-ansible03
 ```
 
-The resulting `pg_hba.conf` therefore reflects infrastructure state defined in inventory instead of a hardcoded list of IP addresses.
+The generated OCI inventory is not stored permanently in Git.
 
-### Apache web server
+---
+
+## Terraform to Ansible Integration
+
+Terraform provides infrastructure metadata through outputs.
+
+The Ansible repository uses:
 
 ```bash
-./deploy-apache.sh apache01
+./scripts/generate-oci-inventory.sh
 ```
 
-The workflow performs:
+to transform Terraform output into an Ansible inventory.
 
-```text
-Host validation
-      |
-      v
-SSH / Ansible connectivity
-      |
-      v
-Privilege escalation check
-      |
-      v
-Ansible syntax validation
-      |
-      v
-Apache/httpd installation
-      |
-      v
-Web page deployment
-      |
-      v
-Service activation
-      |
-      v
-Firewall configuration
-      |
-      v
-HTTP verification
-      |
-      v
-Monitoring onboarding
-```
-
-The Apache role currently supports:
-
-- Red Hat Enterprise Linux
-- Oracle Linux
-- Debian
-
-### Tomcat application host
+The complete refresh workflow is:
 
 ```bash
-./deploy-tomcat.sh tomcat01
+./scripts/refresh-oci-inventory.sh
 ```
 
-The workflow performs:
+The workflow:
 
 ```text
-Host validation
+Terraform outputs
       |
       v
-SSH / Ansible connectivity
+ansible_hosts
       |
       v
-Privilege escalation check
+generate-oci-inventory.sh
       |
       v
-Maven build
+inventory/oci.ini
       |
       v
-WAR content verification
+ansible-inventory --graph
       |
       v
-Ansible syntax validation
-      |
-      v
-Tomcat 11 provisioning
-      |
-      v
-PostgreSQL JDBC driver
-      |
-      v
-JNDI DataSource configuration
-      |
-      v
-WAR deployment
-      |
-      v
-Application endpoint verification
-      |
-      v
-Monitoring onboarding
+Ansible ping
 ```
 
-The application endpoint used for runtime verification is:
+This keeps OCI host addressing and Ansible configuration synchronized with Terraform.
+
+---
+
+## PostgreSQL
+
+The OCI PostgreSQL database runs on:
 
 ```text
-http://HOST:8080/hello-tomcat/hello
+oci-ansible03
 ```
 
-This verifies the deployed Jakarta Servlet and, because the servlet queries PostgreSQL through JNDI, exercises the application-to-database path as well.
+Current version:
+
+```text
+PostgreSQL 18
+```
+
+JobTracker database:
+
+```text
+Database: jobtracker
+User:     jobtracker
+```
+
+Database credentials are stored using Ansible Vault.
+
+The PostgreSQL role manages:
+
+- installation
+- service configuration
+- database provisioning
+- application user provisioning
+- authentication
+- network access
+- connectivity verification
+- monitoring integration
+
+---
+
+## WildFly
+
+WildFly runs on:
+
+```text
+oci-ansible01
+```
+
+Current WildFly configuration includes:
+
+- Java 21
+- systemd service
+- PostgreSQL JDBC driver
+- PostgreSQL module
+- datasource management
+- WAR deployment
+- deployment preflight checks
+- SHA-256 verification
+- automatic rollback
+- health verification
+
+Main deployment directory:
+
+```text
+/opt/wildfly/standalone/deployments/
+```
+
+---
+
+## Nagios
+
+Nagios runs on:
+
+```text
+oci-ansible02
+```
+
+Monitoring includes infrastructure and application-level checks.
+
+Typical checks include:
+
+```text
+PING
+SSH
+load
+memory
+filesystem
+WildFly
+PostgreSQL
+JobTracker
+```
+
+PostgreSQL connectivity is monitored independently from the application server.
+
+Monitoring agents are installed on monitored OCI hosts using Ansible.
+
+---
+
+## Local LAB Infrastructure
+
+The repository also manages local virtual machines used for testing roles before introducing them into OCI.
+
+Examples include:
+
+```text
+Oracle Linux
+RHEL
+Debian
+WildFly
+Tomcat
+PostgreSQL
+Apache
+```
+
+Local systems are useful for:
+
+- role development
+- failure testing
+- bootstrap testing
+- idempotency validation
+- application deployment testing
+- infrastructure experiments
 
 ---
 
 ## Host Bootstrap
 
-Fresh hosts can be normalized before application or service provisioning with:
+Fresh hosts can be normalized before application provisioning.
+
+Example:
 
 ```bash
 ansible-playbook bootstrap.yml --limit <host>
 ```
 
-The bootstrap role currently supports:
-
-- Debian 13 using `/etc/network/interfaces`
-- Red Hat-family systems using NetworkManager / `nmcli`
-
-The role configures:
+The bootstrap role manages:
 
 ```text
 Static IPv4
@@ -275,374 +638,25 @@ DNS
 IPv6 policy
 ```
 
-Per-host network values are stored in `host_vars/`. Example:
-
-```yaml
-bootstrap_ipv4_address: 192.168.64.28
-```
-
-Common defaults provide the prefix, gateway, DNS servers and interface defaults.
-
-The role is designed to be idempotent and was validated with repeated runs returning `changed=0` on Debian and RHEL hosts.
-
-For Red Hat-family systems, the NetworkManager profile is modified first and then activated by a controlled reboot, avoiding an unnecessary interruption of the active SSH session during configuration.
+The role supports Debian and Red Hat-family systems.
 
 ---
 
-## Infrastructure Architecture
+## Application Platforms
 
-Example LAB architecture:
+### WildFly
 
-```text
-                     Ansible Control Node
-                         macOS / ARM64
-                              |
-                              |
-         +--------------------+--------------------+
-         |                    |                    |
-         v                    v                    v
-   Application Hosts     Database Hosts       Web Servers
- WildFly / Tomcat / Java PostgreSQL           Apache/httpd
-         |                    ^                    |
-         | JDBC               |                    |
-         +--------------------+                    |
-                                                   |
-                         Monitoring                |
-                             |                     |
-              +--------------+--------------+      |
-              |                             |      |
-              v                             v      |
-           Nagios                       Prometheus |
-              |                             |      |
-              |                             v      |
-              |                           Grafana  |
-              +-----------------------------+------+
-```
-
-PostgreSQL runs on dedicated database hosts.
-
-Application servers connect remotely using JDBC rather than running the database locally.
-
----
-
-## WildFly Deployment Safety
-
-The WildFly deployment process includes several safeguards before an application is considered successfully deployed.
-
-### Pre-flight validation
-
-Ansible verifies:
-
-- application artifact exists
-- WAR archive is valid
-- required WAR structure exists
-- PostgreSQL is reachable
-- WildFly datasource connection succeeds
-- Ansible configuration is valid
-
-### Artifact integrity
-
-The source WAR SHA-256 checksum is calculated before deployment.
-
-After deployment, the remote artifact checksum is calculated again and compared with the source.
-
-Deployment metadata is stored alongside the application:
-
-```text
-/opt/wildfly/standalone/deployments/
-├── hello-wildfly.war
-├── hello-wildfly.war.sha256
-└── hello-wildfly.build-info.properties
-```
-
-### Automatic rollback
-
-Before replacing an existing deployment, Ansible creates a backup.
-
-If WildFly reports a deployment failure, the previous artifact can be restored automatically.
-
-Old deployment backups are rotated and only the newest backups are retained.
-
----
-
-## Build Metadata
-
-Every application build contains metadata embedded directly inside the WAR:
-
-```text
-WEB-INF/classes/build-info.properties
-```
-
-Example:
-
-```properties
-git.commit=34ea560936ccb950a4a4971ba55545bb83acd484
-git.ref=main
-github.run.id=39635338435
-github.run.number=54
-```
-
-The same information is stored on the target server so the deployed version can be identified directly from the filesystem.
-
----
-
-## PostgreSQL Architecture
-
-Example configuration:
-
-```text
-Application hosts
-      |
-      | PostgreSQL / JDBC
-      v
-database01 / database02
-      |
-      v
-ansible_lab
-```
-
-Application database:
-
-```text
-Database: ansible_lab
-User:     ansible_app
-```
-
-PostgreSQL configuration includes:
-
-- database provisioning
-- application user provisioning
-- SCRAM authentication
-- dynamic `listen_addresses`
-- declarative `pg_hba.conf`
-- access generated from the `[db_clients]` inventory group
-- remote connectivity verification
-- idempotent repeated execution
-
-Database credentials are stored using **Ansible Vault**.
-
----
-
-## Secrets and Privilege Escalation
-
-Secrets are not stored as plaintext variables.
-
-The LAB uses:
-
-```text
-group_vars/all/vault.yml
-```
-
-for encrypted values such as:
-
-- PostgreSQL credentials
-- sudo/become passwords
-
-Host-specific privilege escalation passwords are mapped through Vault and exposed to Ansible using:
-
-```yaml
-ansible_become_password: "{{ vault_become_passwords[inventory_hostname] }}"
-```
-
-As a result, normal provisioning no longer requires repeated `BECOME password:` prompts.
-
-Example:
-
-```bash
-ansible database02 -b -m ansible.builtin.command -a 'id'
-```
-
----
-
-## Monitoring
-
-Monitoring onboarding is part of the provisioning workflow rather than a separate manual task.
-
-### Node Exporter
-
-Node Exporter exposes Linux host metrics on:
-
-```text
-:9100
-```
-
-### Prometheus
-
-Prometheus targets are generated dynamically from the Ansible inventory.
-
-Example:
-
-```yaml
-labels:
-  host: "apache01"
-```
-
-Adding a host to inventory and refreshing the Prometheus configuration makes the host available for scraping.
-
-### Grafana
-
-Grafana uses Prometheus as its datasource.
-
-New hosts automatically become available in dashboards once Prometheus begins collecting their metrics.
-
-### Nagios
-
-Nagios host configuration is generated from Ansible inventory.
-
-Typical checks include:
-
-```text
-PING
-SSH
-HTTP
-Tomcat application endpoint
-PostgreSQL TCP/5432
-WildFly availability
-system load
-memory
-filesystem usage
-process count
-```
-
-NRPE is used where operating-system or application checks need to be executed remotely.
-
----
-
-## Inventory Design
-
-Inventory groups describe both operating systems and infrastructure responsibilities.
-
-Example:
-
-```ini
-[oracle]
-oracle01
-oracle02
-
-[debian]
-debian01
-debian02
-database01
-database02
-tomcat01
-
-[rhel]
-rhel01
-rhel02
-apache01
-
-[apache]
-oracle01
-oracle02
-apache01
-
-[tomcat]
-debian01
-tomcat01
-
-[wildfly]
-debian02
-rhel01
-rhel02
-
-[database]
-database01
-database02
-
-[db_clients]
-debian01
-debian02
-rhel01
-rhel02
-tomcat01
-
-[http_servers]
-oracle01
-oracle02
-debian01
-debian02
-apache01
-
-[monitoring]
-oracle01
-
-[bootstrap]
-database02
-tomcat01
-rhel02
-```
-
-Functional groups such as `[database]`, `[db_clients]`, `[apache]`, `[tomcat]`, `[wildfly]`, `[http_servers]`, `[bootstrap]` and `[monitoring]` describe infrastructure responsibilities independently of the Linux distribution.
-
----
-
-## Fresh Host Requirements
-
-A new LAB host requires only the minimum initial operating-system access before the Ansible bootstrap can take over:
-
-- SSH connectivity
-- SSH public-key authentication
-- Ansible user
-- sudo privileges
-- Python 3
-- network connectivity
-- inventory entry
-- per-host bootstrap variables
-- encrypted become password in Ansible Vault
-
-Example connectivity test:
-
-```bash
-ansible apache01 -m ansible.builtin.ping
-```
-
-Privilege escalation test:
-
-```bash
-ansible apache01 -b -m ansible.builtin.command -a 'id'
-```
-
-After the host is reachable through Ansible, baseline network configuration can be applied with:
-
-```bash
-ansible-playbook bootstrap.yml --limit <host>
-```
-
-For registered RHEL systems, roles can automatically configure additional repositories where required by installed components.
-
----
-
-## Idempotency
-
-Idempotency is treated as a core requirement.
-
-A successful first execution is not sufficient — the same playbook must be safe to run repeatedly.
-
-Examples from the LAB:
-
-```text
-database02 : ok=12 changed=0 unreachable=0 failed=0
-apache01   : ok=6  changed=0 unreachable=0 failed=0
-tomcat01   : ok=7  changed=0 unreachable=0 failed=0
-rhel02     : ok=13 changed=0 unreachable=0 failed=0
-```
-
-A second execution with `changed=0` and `failed=0` is used as an important validation step when developing or modifying roles.
-
----
-
-## WildFly Application
-
-The example application is deployed as:
+The original LAB application:
 
 ```text
 hello-wildfly.war
 ```
 
-Deployment directory:
+uses:
 
 ```text
-/opt/wildfly/standalone/deployments/
+Datasource: AnsibleLabDS
+JNDI:       java:/jdbc/AnsibleLabDS
 ```
 
 Example endpoint:
@@ -651,242 +665,228 @@ Example endpoint:
 http://HOST:8080/hello-wildfly/api/hello/data
 ```
 
-Datasource:
+### Tomcat
 
-```text
-AnsibleLabDS
-```
-
-JNDI:
-
-```text
-java:/jdbc/AnsibleLabDS
-```
-
----
-
-## Tomcat Application
-
-The example Tomcat application is deployed as:
+The Tomcat LAB application:
 
 ```text
 hello-tomcat.war
 ```
 
-Deployment directory:
+uses PostgreSQL through JNDI.
 
-```text
-/var/lib/tomcat11/webapps/
-```
-
-Application endpoint:
+Example endpoint:
 
 ```text
 http://HOST:8080/hello-tomcat/hello
 ```
 
-The application uses:
+These applications remain useful as isolated test workloads for Ansible role development.
 
-```text
-JNDI:     jdbc/ansibleLab
-Database: ansible_lab
-User:     ansible_app
-```
-
-The datasource points to the dedicated PostgreSQL host and uses the PostgreSQL JDBC driver installed by the Tomcat role.
-
-Nagios verifies the real application endpoint rather than only checking whether TCP/8080 is open:
-
-```text
-check_http -p 8080 -u /hello-tomcat/hello -e 200
-```
+JobTracker is the main integrated OCI application.
 
 ---
 
-## CI/CD
+## Secrets
 
-GitHub Actions is used to build and validate the Java application before deployment.
+Secrets are stored using Ansible Vault.
+
+Encrypted values are maintained under:
 
 ```text
-Source code
-    |
-    v
-Maven build
-    |
-    v
-Tests
-    |
-    v
-Generate build metadata
-    |
-    v
-Verify WAR contents
-    |
-    v
-Upload artifact
-    |
-    v
-Ansible deployment
-    |
-    v
-Application verification
+group_vars/all/vault.yml
 ```
 
-Deployment can use artifacts generated by CI rather than rebuilding them directly on an application server.
+Examples include:
+
+- PostgreSQL passwords
+- application credentials
+- sudo / become passwords
+
+Secrets are not committed as plaintext.
+
+The local Vault password file is maintained outside the repository.
+
+---
+
+## Ansible Collections
+
+External collections required by the repository are declared in:
+
+```text
+requirements.yml
+```
+
+Current collections include:
+
+```text
+ansible.posix
+community.general
+community.postgresql
+```
+
+Install them with:
+
+```bash
+ansible-galaxy collection install -r requirements.yml
+```
 
 ---
 
 ## Repository Structure
 
-Main areas of the repository:
+Important repository areas:
 
 ```text
 .
-├── applications/
-│   ├── hello-wildfly/
-│   └── hello-tomcat/
+├── .github/
+│   └── workflows/
+│       └── ansible-ci.yml
+│
+├── inventory/
+│   ├── notebook.ini
+│   └── oci.ini
+│
 ├── group_vars/
-│   └── all/
-│       ├── main.yml
-│       └── vault.yml
+│   ├── all/
+│   └── appservers.yml
+│
 ├── roles/
 │   ├── apache/
 │   ├── bootstrap/
 │   ├── java/
+│   ├── monitoring_agent/
+│   ├── nagios_server/
 │   ├── postgresql/
+│   ├── postgresql_oci/
 │   ├── tomcat/
-│   ├── wildfly/
-│   ├── node_exporter/
-│   ├── nrpe/
-│   ├── nagios/
-│   ├── prometheus/
-│   └── grafana/
+│   └── wildfly/
+│
+├── scripts/
+│   ├── generate-oci-inventory.sh
+│   ├── refresh-oci-inventory.sh
+│   └── deploy-jobtracker-artifact.sh
+│
+├── artifacts/
+│   └── jobtracker/
+│
 ├── bootstrap.yml
-├── deploy-lab.sh
-├── deploy-database.sh
-├── deploy-apache.sh
-├── deploy-tomcat.sh
-├── wildfly_role.yml
-├── postgresql_role.yml
-├── apache_role.yml
-├── tomcat_role.yml
-├── node_exporter.yml
-├── nrpe.yml
-├── nagios.yml
-└── prometheus.yml
+├── jobtracker_deploy.yml
+├── postgresql_oci.yml
+├── wildfly_oci.yml
+├── verify_jobtracker_db.yml
+├── requirements.yml
+└── README.md
 ```
 
-Additional roles and playbooks are used for other LAB services and experiments.
+The `artifacts/` directory is used only as a local staging area and is ignored by Git.
 
 ---
 
-## Technologies
+## Main Commands
 
-### Automation
+Refresh OCI inventory:
 
-- Ansible
-- Ansible Vault
-- Bash
-- Git
-- GitHub Actions
+```bash
+./scripts/refresh-oci-inventory.sh
+```
 
-### Linux
+Deploy the newest successful JobTracker CI artifact:
 
-- Red Hat Enterprise Linux
-- Debian
-- Oracle Linux
-- macOS control node
+```bash
+./scripts/deploy-jobtracker-artifact.sh
+```
 
-### Application Platform
+Deploy JobTracker with a local Maven build:
 
-- Java 21
-- WildFly
-- Apache Tomcat 11
-- Maven
+```bash
+ansible-playbook jobtracker_deploy.yml
+```
 
-### Web
+Deploy a prebuilt WAR:
 
-- Apache HTTP Server
+```bash
+ansible-playbook jobtracker_deploy.yml \
+  -e jobtracker_build_local=false \
+  -e wildfly_war_source=/path/to/jobtracker.war
+```
 
-### Database
+Check OCI hosts:
 
-- PostgreSQL
-- JDBC
+```bash
+ansible oci -m ansible.builtin.ping
+```
 
-### Monitoring
+View inventory:
 
-- Nagios
-- NRPE
-- Prometheus
-- Node Exporter
-- Grafana
+```bash
+ansible-inventory --graph
+```
 
 ---
 
-## Project Goals
+## CI/CD Architecture
 
-The goal of the repository is to build practical experience with real System Engineering, Infrastructure Automation and DevOps workflows.
+The current release architecture is:
 
-Areas covered include:
+```text
+                    GitHub
+                      |
+          +-----------+-----------+
+          |           |           |
+          v           v           v
+     Terraform CI  Ansible CI  JobTracker CI
+          |           |           |
+          |           |           v
+          |           |      jobtracker-war
+          |           |           |
+          v           |           v
+     OCI resources    |     Artifact download
+                      |           |
+                      +-----------+
+                            |
+                            v
+                         Ansible
+                            |
+                            v
+                       WildFly OCI
+                            |
+                            v
+                       PostgreSQL OCI
+                            |
+                            v
+                       Health check
+```
 
-- Infrastructure as Code
-- host baseline automation
-- configuration management
-- repeatable server provisioning
-- application deployment
-- CI/CD
-- secrets management
-- monitoring and observability
-- deployment verification
-- rollback strategies
-- infrastructure troubleshooting
-- Linux administration
-- service dependency management
+At present deployment is manually triggered through:
 
-The environment is intentionally developed from real failures and fresh-host tests rather than only from predefined examples.
+```bash
+./scripts/deploy-jobtracker-artifact.sh
+```
 
-Each new system is used to identify hidden assumptions and make the automation more portable and predictable.
+This is intentional.
+
+The current architecture first validates the complete artifact-based release flow before automatic CD is introduced.
 
 ---
 
 ## Current Result
 
-The LAB can currently automate four different infrastructure paths:
+The LAB currently provides a complete application delivery path from infrastructure provisioning to runtime verification.
 
 ```text
-Fresh Linux VM
-      |
-      v
- Host bootstrap
-      |
-      +----> WildFly + Java + Application
-      |
-      +----> PostgreSQL Database
-      |
-      +----> Apache Web Server
-      |
-      +----> Tomcat + Java Web Application
-```
-
-Each provisioned host can then be connected to:
-
-```text
-Node Exporter
-Prometheus
-Grafana
-Nagios
-```
-
-with infrastructure state driven primarily from the Ansible inventory.
-
-Main entry points:
-
-```bash
-ansible-playbook bootstrap.yml --limit <host>
-./deploy-lab.sh <wildfly-host>
-./deploy-database.sh <database-host>
-./deploy-apache.sh <apache-host>
-./deploy-tomcat.sh <tomcat-host>
-```
-
-The next stages of the LAB continue the same approach by extending fresh-host automation to additional application and infrastructure services.
+Terraform
+    |
+    v
+OCI infrastructure
+    |
+    v
+Ansible
+    |
+    +--> Linux
+    +--> WildFly
+    +--> PostgreSQL
+    +--> Nagios
+    |
+    v
+JobTracker CI artifact
