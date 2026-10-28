@@ -22,3 +22,5 @@ register_lab_errors.log
 .ansible_fact_cache/
 
 applications/hello-wildfly/src/main/resources/build-info.properties
+
+inventory_oci.ini
