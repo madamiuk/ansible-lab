@@ -27,6 +27,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install ansible-core==2.21.4
 
+      - name: Create CI Vault password placeholder
+        run: |
+          echo "ci-vault-placeholder" > ~/.ansible_vault_pass
+          chmod 600 ~/.ansible_vault_pass
+
       - name: Ansible version
         run: ansible --version
 
