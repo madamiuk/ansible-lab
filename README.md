@@ -1,5 +1,6 @@
 # Ansible Infrastructure & CI/CD Lab
 
+[![Ansible CI](https://github.com/madamiuk/ansible-lab/actions/workflows/ansible-ci.yml/badge.svg)](https://github.com/madamiuk/ansible-lab/actions/workflows/ansible-ci.yml)
 Hands-on infrastructure automation lab built around **Ansible**, **Linux**, **WildFly**, **Tomcat**, **PostgreSQL**, **Apache**, **GitHub Actions** and a monitoring stack based on **Nagios**, **Prometheus** and **Grafana**.
 
 The project focuses on practical System Engineering and DevOps workflows:
