@@ -11,3 +11,5 @@ command[check_swap]=/usr/lib64/nagios/plugins/check_swap -w 20% -c 10%
 command[check_zombie_procs]=/usr/lib64/nagios/plugins/check_procs -w 5 -c 10 -s Z
 
 command[check_total_procs]=/usr/lib64/nagios/plugins/check_procs -w 250 -c 400
+
+command[check_postgresql_process]=/usr/lib64/nagios/plugins/check_procs -c 1: -C postgres

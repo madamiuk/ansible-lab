@@ -52,6 +52,20 @@ define service {
 define service {
     use                     generic-service
     host_name               oci-ansible03
+    service_description     Swap
+    check_command           check_nrpe!check_swap
+}
+
+define service {
+    use                     generic-service
+    host_name               oci-ansible03
+    service_description     PostgreSQL Process
+    check_command           check_nrpe!check_postgresql_process
+}
+
+define service {
+    use                     generic-service
+    host_name               oci-ansible03
     service_description     PostgreSQL JobTracker
     check_command           check_pgsql_jobtracker
 }
@@ -69,3 +83,5 @@ define service {
     service_description     PostgreSQL Database Size
     check_command           check_pgsql_database_size
 }
+
+
