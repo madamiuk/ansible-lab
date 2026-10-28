@@ -6,6 +6,7 @@
 
   vars:
     jobtracker_project_dir: /Users/ma/jobtracker
+    jobtracker_build_local: true
 
     wildfly_app_name: jobtracker
     wildfly_war_source: "{{ jobtracker_project_dir }}/target/jobtracker.war"
@@ -34,6 +35,7 @@
       become: false
       run_once: true
       changed_when: true
+      when: jobtracker_build_local | bool
 
   tasks:
     - name: JobTracker deployment preflight
