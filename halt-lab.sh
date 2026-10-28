@@ -8,7 +8,7 @@ cd "$REPO_DIR" || exit 1
 
 echo
 echo "========================================"
-echo " LAB VM shutdown"
+echo " Notebook VM shutdown"
 echo "========================================"
 echo
 
@@ -33,7 +33,7 @@ while read -r host; do
     fi
 
 done < <(
-    ansible all --list-hosts 2>/dev/null \
+    ansible notebook_vms --list-hosts 2>/dev/null \
         | tail -n +2 \
         | sed 's/^[[:space:]]*//'
 )
@@ -84,11 +84,6 @@ done
 
 echo
 echo "Czekam na wyłączenie hostów..."
-
-sleep 8
-
-echo
-echo "Weryfikacja:"
 echo
 
 FAILED_HOSTS=()
@@ -96,16 +91,27 @@ FAILED_HOSTS=()
 for host in "${SHUTDOWN_REQUESTED[@]}"; do
     printf "  %-15s " "$host"
 
-    if ansible "$host" \
-        -m ansible.builtin.ping \
-        -o >/dev/null 2>&1; then
+    offline=false
 
-        echo "NADAL ONLINE"
-        FAILED_HOSTS+=("$host")
+    for attempt in {1..12}; do
+      if ! ansible "$host" \
+        -m ansible.builtin.ping \
+        >/dev/null 2>&1; then
+
+        offline=true
+        break
+      fi
+
+      sleep 5
+    done
+
+    if [[ "$offline" == true ]]; then
+      echo "OFFLINE"
     else
-        echo "OFFLINE"
+      echo "NADAL ONLINE"
+      FAILED_HOSTS+=("$host")
     fi
-done
+  done
 
 echo
 echo "========================================"
