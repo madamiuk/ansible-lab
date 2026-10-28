@@ -1,0 +1,79 @@
+name: Ansible CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  validate:
+    name: Ansible Validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install Ansible
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible-core==2.21.4
+
+      - name: Ansible version
+        run: ansible --version
+
+      - name: Validate Bash scripts
+        run: |
+          find . -type f -name "*.sh" -print0 | xargs -0 -n1 bash -n
+
+      - name: Validate notebook inventory
+        run: |
+          ansible-inventory \
+            -i inventory/notebook.ini \
+            --list >/dev/null
+
+      - name: Create CI OCI inventory
+        run: |
+          cat > /tmp/oci-ci.ini <<'EOF'
+          [oci]
+          oci-ansible01 ansible_host=127.0.0.1 ansible_user=opc
+          oci-ansible02 ansible_host=127.0.0.1 ansible_user=opc
+          oci-ansible03 ansible_host=127.0.0.1 ansible_user=opc
+
+          [appservers]
+          oci-ansible01
+
+          [nagios_server]
+          oci-ansible02
+
+          [oci_database]
+          oci-ansible03
+
+          [monitored_hosts]
+          oci-ansible01
+          oci-ansible03
+          EOF
+
+      - name: Syntax check playbooks
+        run: |
+          set -e
+
+          for playbook in *.yml; do
+            [ -f "$playbook" ] || continue
+
+            echo "Checking $playbook"
+
+            ansible-playbook \
+              -i inventory/notebook.ini \
+              -i /tmp/oci-ci.ini \
+              "$playbook" \
+              --syntax-check
+          done
