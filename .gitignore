@@ -23,4 +23,4 @@ register_lab_errors.log
 
 applications/hello-wildfly/src/main/resources/build-info.properties
 
-inventory_oci.ini
+inventory/oci.ini

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 TERRAFORM_DIR="/Users/ma/oci-terraform-lab"
-OUTPUT_FILE="/Users/ma/ansible/inventory_oci.ini"
+OUTPUT_FILE="/Users/ma/ansible/inventory/oci.ini"
 
 TMP_JSON="$(mktemp)"
 trap 'rm -f "$TMP_JSON"' EXIT

@@ -4,7 +4,7 @@ set -euo pipefail
 
 ANSIBLE_DIR="/Users/ma/ansible"
 GENERATOR="${ANSIBLE_DIR}/scripts/generate-oci-inventory.sh"
-INVENTORY="${ANSIBLE_DIR}/inventory_oci.ini"
+INVENTORY="${ANSIBLE_DIR}/inventory/oci.ini"
 
 echo
 echo "========================================"
