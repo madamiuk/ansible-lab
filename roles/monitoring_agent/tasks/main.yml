@@ -23,6 +23,14 @@
     line: "allowed_hosts={{ monitoring_agent_allowed_hosts | join(',') }}"
   notify: Restart nrpe
 
+- name: Install custom memory monitoring plugin
+  ansible.builtin.copy:
+    src: check_memory.sh
+    dest: /usr/lib64/nagios/plugins/check_memory
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Configure NRPE monitoring checks
   ansible.builtin.template:
     src: 10-ansible-checks.cfg.j2

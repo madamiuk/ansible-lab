@@ -59,6 +59,13 @@ define service {
 define service {
     use                     generic-service
     host_name               oci-ansible03
+    service_description     Memory
+    check_command           check_nrpe!check_memory
+}
+
+define service {
+    use                     generic-service
+    host_name               oci-ansible03
     service_description     PostgreSQL Process
     check_command           check_nrpe!check_postgresql_process
 }
