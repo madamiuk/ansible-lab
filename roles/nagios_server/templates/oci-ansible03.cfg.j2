@@ -55,3 +55,17 @@ define service {
     service_description     PostgreSQL JobTracker
     check_command           check_pgsql_jobtracker
 }
+
+define service {
+    use                     generic-service
+    host_name               oci-ansible03
+    service_description     PostgreSQL Connections
+    check_command           check_pgsql_connections
+}
+
+define service {
+    use                     generic-service
+    host_name               oci-ansible03
+    service_description     PostgreSQL Database Size
+    check_command           check_pgsql_database_size
+}
