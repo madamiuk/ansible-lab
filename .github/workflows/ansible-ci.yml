@@ -15,10 +15,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.14"
 
@@ -27,10 +27,26 @@ jobs:
           python -m pip install --upgrade pip
           pip install ansible-core==2.21.4
 
-      - name: Create CI Vault password placeholder
+      - name: Prepare Vault-free CI workspace
         run: |
-          echo "ci-vault-placeholder" > ~/.ansible_vault_pass
-          chmod 600 ~/.ansible_vault_pass
+          cp -a "$GITHUB_WORKSPACE" /tmp/ansible-ci
+
+          for dir in /tmp/ansible-ci/group_vars /tmp/ansible-ci/host_vars; do
+            [ -d "$dir" ] || continue
+
+            find "$dir" \
+              -type f \( -name "*.yml" -o -name "*.yaml" \) \
+              -exec sh -c '
+                for file do
+                  if head -n 1 "$file" | grep -q "^\$ANSIBLE_VAULT"; then
+                    echo "Replacing encrypted file for syntax validation: $file"
+                    printf -- "---\n{}\n" > "$file"
+                  fi
+                done
+              ' sh {} +
+          done
+
+          sed -i '/^[[:space:]]*vault_password_file[[:space:]]*=/d' /tmp/ansible-ci/ansible.cfg
 
       - name: Ansible version
         run: ansible --version
@@ -40,6 +56,7 @@ jobs:
           find . -type f -name "*.sh" -print0 | xargs -0 -n1 bash -n
 
       - name: Validate notebook inventory
+        working-directory: /tmp/ansible-ci
         run: |
           ansible-inventory \
             -i inventory/notebook.ini \
@@ -68,6 +85,7 @@ jobs:
           EOF
 
       - name: Syntax check playbooks
+        working-directory: /tmp/ansible-ci
         run: |
           set -e
 
