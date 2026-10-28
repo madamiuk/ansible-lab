@@ -27,6 +27,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install ansible-core==2.21.4
 
+      - name: Install Ansible collections
+        run: |
+          ansible-galaxy collection install -r requirements.yml
+
       - name: Prepare Vault-free CI workspace
         run: |
           cp -a "$GITHUB_WORKSPACE" /tmp/ansible-ci
@@ -91,6 +95,12 @@ jobs:
 
           for playbook in *.yml; do
             [ -f "$playbook" ] || continue
+
+            case "$playbook" in
+              requirements.yml)
+                continue
+                ;;
+            esac
 
             echo "Checking $playbook"
 
