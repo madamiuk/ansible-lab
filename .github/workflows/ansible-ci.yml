@@ -40,7 +40,7 @@ jobs:
                 for file do
                   if head -n 1 "$file" | grep -q "^\$ANSIBLE_VAULT"; then
                     echo "Replacing encrypted file for syntax validation: $file"
-                    printf -- "---\n{}\n" > "$file"
+                    printf -- "---\nci_vault_placeholder: true\n" > "$file"
                   fi
                 done
               ' sh {} +
