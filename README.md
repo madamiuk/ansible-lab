@@ -1,50 +1,62 @@
-# Ansible Infrastructure & CI/CD Lab
+# Ansible Infrastructure & Application Delivery Lab
 
 [![Ansible CI](https://github.com/madamiuk/ansible-lab/actions/workflows/ansible-ci.yml/badge.svg)](https://github.com/madamiuk/ansible-lab/actions/workflows/ansible-ci.yml)
 
-Hands-on infrastructure automation lab built around **Ansible**, **Linux**, **Oracle Cloud Infrastructure**, **WildFly**, **Tomcat**, **PostgreSQL**, **Apache**, **GitHub Actions** and monitoring based on **Nagios**, **Prometheus** and **Grafana**.
+Hands-on infrastructure automation laboratory built around **Ansible**, **Linux**, **Oracle Cloud Infrastructure**, **WildFly**, **PostgreSQL**, **Nagios**, **GitHub Actions** and the **JobTracker** Java application.
 
-The project focuses on practical System Engineering, Infrastructure as Code and DevOps workflows:
+The project focuses on practical System Engineering, Infrastructure as Code and DevOps workflows rather than isolated configuration examples.
 
-- Linux host provisioning
+The laboratory covers:
+
+- Linux host configuration
+- reusable Ansible roles
 - configuration management
-- application deployment
+- Java application deployment
+- WildFly administration
+- PostgreSQL administration
 - database connectivity
 - secrets management
-- CI/CD
-- deployment verification
-- artifact integrity
-- rollback
+- CI validation
+- artifact-based deployment
+- deployment preflight checks
+- artifact integrity verification
+- automatic rollback
+- REST runtime verification
+- end-to-end application testing
 - monitoring
 - idempotency
 - troubleshooting real infrastructure dependencies
 
-The LAB is developed incrementally and is used to validate automation against both local virtual machines and Oracle Cloud Infrastructure.
+The environment is developed incrementally and is used against both local virtual machines and Oracle Cloud Infrastructure.
 
 ---
 
-## Current Architecture
+## Current architecture
 
-The current environment combines three independent repositories:
+The current laboratory is split across three independent repositories:
 
 ```text
 oci-terraform-lab
         |
-        +--> Terraform
-        +--> OCI infrastructure
-        |
+        | Terraform
         v
 Oracle Cloud Infrastructure
         |
         +--> oci-ansible01
+        |       Oracle Linux 9
+        |       Java 21
         |       WildFly
         |       JobTracker
         |
         +--> oci-ansible02
+        |       Oracle Linux 9
         |       Nagios
         |
         +--> oci-ansible03
+                Oracle Linux 9
                 PostgreSQL 18
+                jobtracker database
+
 
 ansible-lab
         |
@@ -52,31 +64,35 @@ ansible-lab
         +--> WildFly
         +--> PostgreSQL
         +--> Nagios
-        +--> deployment
+        +--> application deployment
         +--> runtime verification
+        +--> end-to-end tests
+
 
 jobtracker
         |
         +--> Java 21
-        +--> Jakarta EE
+        +--> Jakarta EE 11
         +--> REST API
         +--> JPA / Hibernate
+        +--> web interface
+        +--> automated tests
         +--> Maven
         +--> GitHub Actions
         +--> WAR artifact
 ```
 
-Responsibilities are intentionally separated.
+Responsibilities are intentionally separated:
 
 ```text
 Terraform  -> infrastructure
 Ansible    -> configuration and deployment
-JobTracker -> application code and build
+JobTracker -> application code and business logic
 ```
 
 ---
 
-## OCI Environment
+## OCI environment
 
 The OCI environment currently contains three Oracle Linux hosts.
 
@@ -100,54 +116,112 @@ oci-ansible03
     +--> jobtracker database
 ```
 
+Current private addressing:
+
+```text
+oci-ansible01    10.10.1.37
+oci-ansible02    10.10.1.176
+oci-ansible03    10.10.1.26
+```
+
 Application traffic between WildFly and PostgreSQL uses the private OCI network.
 
-PostgreSQL runs on a dedicated database host and is not installed locally on the WildFly server.
+PostgreSQL runs on a dedicated database host and is not installed locally on the WildFly application server.
 
 ---
 
-## CI Status
+## Repository responsibilities
 
-The environment currently uses three independent CI pipelines.
+The Ansible repository is responsible for the configuration and application delivery layer.
 
-```text
-Terraform CI   OK
-Ansible CI     OK
-JobTracker CI  OK
-```
-
-Each pipeline validates a different layer.
+It manages:
 
 ```text
-Terraform CI
-      |
-      +--> terraform fmt
-      +--> terraform init
-      +--> terraform validate
-
-Ansible CI
-      |
-      +--> Bash syntax
-      +--> inventory validation
-      +--> collection dependencies
-      +--> playbook syntax checks
-
-JobTracker CI
-      |
-      +--> Java 21
-      +--> Maven
-      +--> mvn clean verify
-      +--> WAR validation
-      +--> GitHub Actions artifact
+Operating system configuration
+        |
+        v
+Java / WildFly
+        |
+        v
+PostgreSQL
+        |
+        v
+Nagios
+        |
+        v
+JobTracker deployment
+        |
+        v
+Runtime verification
+        |
+        v
+End-to-end verification
 ```
+
+Terraform remains responsible for OCI infrastructure.
+
+JobTracker remains responsible for application source code and application-level CI.
 
 ---
 
-## JobTracker Deployment
+## CI status
 
-JobTracker is deployed to WildFly on OCI using a WAR artifact generated by the independent `jobtracker` repository.
+The laboratory currently uses three independent CI pipelines:
 
-The complete deployment path is:
+```text
+Terraform CI   -> OCI infrastructure configuration
+Ansible CI     -> automation validation
+JobTracker CI  -> Java application build and tests
+```
+
+All three layers are validated independently before they are combined at runtime.
+
+### Ansible CI
+
+The Ansible GitHub Actions workflow validates:
+
+```text
+repository checkout
+        |
+        v
+Python / Ansible environment
+        |
+        v
+Bash syntax validation
+        |
+        v
+Ansible collection installation
+        |
+        v
+inventory validation
+        |
+        v
+playbook syntax checks
+```
+
+Workflow:
+
+```text
+.github/workflows/ansible-ci.yml
+```
+
+The CI pipeline runs automatically on repository changes.
+
+---
+
+## JobTracker application delivery
+
+JobTracker is the main integrated OCI workload.
+
+The application is developed in the separate:
+
+```text
+madamiuk/jobtracker
+```
+
+repository.
+
+The complete application delivery path is:
 
 ```text
 Git push
@@ -162,17 +236,16 @@ Java 21
 mvn clean verify
     |
     v
+47 automated tests
+    |
+    v
 jobtracker.war
     |
     v
 GitHub Actions artifact
-jobtracker-war
     |
     v
-deploy-jobtracker-artifact.sh
-    |
-    v
-Ansible
+Ansible deployment
     |
     v
 oci-ansible01
@@ -184,110 +257,132 @@ oci-ansible03
 PostgreSQL 18
     |
     v
-REST health verification
+REST runtime verification
 ```
 
-The main deployment wrapper is:
+The separation between build and deployment is intentional.
+
+JobTracker creates the application artifact.
+
+Ansible deploys and verifies it.
+
+---
+
+## JobTracker deployment wrapper
+
+The primary artifact deployment wrapper is:
 
 ```bash
 ./scripts/deploy-jobtracker-artifact.sh
 ```
 
-The wrapper:
+The wrapper performs the following workflow:
 
 ```text
-Finds the newest successful JobTracker CI run
+Find newest successful JobTracker CI run
         |
         v
-Downloads jobtracker-war
+Download jobtracker-war artifact
         |
         v
-Verifies WAR contents
+Validate WAR
         |
         v
-Calculates SHA-256
+Calculate SHA-256
         |
         v
-Runs jobtracker_deploy.yml
+Run jobtracker_deploy.yml
         |
         v
-Validates JobTrackerDS
+Validate JobTrackerDS
         |
         v
-Deploys WAR to WildFly
+Deploy WAR
         |
         v
-Verifies remote SHA-256
+Verify remote SHA-256
         |
         v
-Checks /jobtracker/api/health
+Verify WildFly deployment
+        |
+        v
+Run REST checks
 ```
 
-The downloaded CI artifacts are stored locally under:
+Downloaded CI artifacts are stored locally under:
 
 ```text
-artifacts/jobtracker/
+artifacts/
 ```
 
-This directory is excluded from Git.
+The artifact directory is excluded from Git.
 
 ---
 
-## JobTracker Deployment Modes
+## Deployment modes
 
-The deployment playbook supports two modes.
+The JobTracker deployment playbook supports two deployment modes.
 
-### Local development mode
+### Local development build
 
 ```bash
-ansible-playbook jobtracker_deploy.yml
+cd /path/to/ansible-lab
+
+ansible-playbook \
+  jobtracker_deploy.yml
 ```
 
-In this mode Ansible builds the application locally using Maven before deployment.
-
-The local project directory is:
+In this mode the application is built locally from:
 
 ```text
-/Users/ma/jobtracker
+/path/to/jobtracker
 ```
+
+using Maven.
 
 The resulting artifact is:
 
 ```text
-/Users/ma/jobtracker/target/jobtracker.war
-```
-
-### Prebuilt artifact mode
-
-```bash
-ansible-playbook jobtracker_deploy.yml \
-  -e jobtracker_build_local=false \
-  -e wildfly_war_source=/path/to/jobtracker.war
-```
-
-In this mode Ansible does not build the application.
-
-A previously built WAR is validated and deployed directly.
-
-This is the mode used by:
-
-```bash
-./scripts/deploy-jobtracker-artifact.sh
+/path/to/jobtracker/target/jobtracker.war
 ```
 
 ---
 
-## JobTracker Runtime
+### Prebuilt artifact deployment
+
+A prebuilt WAR can be deployed without rebuilding the application:
+
+```bash
+cd /path/to/ansible-lab
+
+ansible-playbook \
+  jobtracker_deploy.yml \
+  -e jobtracker_build_local=false \
+  -e wildfly_war_source=/path/to/jobtracker.war
+```
+
+This mode is used by:
+
+```text
+./scripts/deploy-jobtracker-artifact.sh
+```
+
+and separates artifact creation from infrastructure deployment.
+
+---
+
+## JobTracker runtime
 
 JobTracker currently runs on:
 
 ```text
 Host:        oci-ansible01
+Private IP:  10.10.1.37
 Platform:    WildFly
 Application: jobtracker
 ```
 
-Datasource configuration:
+Datasource:
 
 ```text
 Datasource: JobTrackerDS
@@ -297,35 +392,53 @@ JNDI:       java:/jdbc/JobTrackerDS
 Database:
 
 ```text
-Host:     oci-ansible03
-Database: jobtracker
-User:     jobtracker
+Host:       oci-ansible03
+Private IP: 10.10.1.26
+Database:   jobtracker
+User:       jobtracker
+Version:    PostgreSQL 18
 ```
 
-Health endpoint:
+The application health endpoint is available internally under:
 
 ```text
 http://10.10.1.37:8080/jobtracker/api/health
 ```
 
-A successful response confirms that the application is deployed and responding through WildFly.
+WildFly port `8080` is not intentionally exposed publicly for normal application use.
+
+During development the web interface can be accessed through an SSH tunnel.
+
+Example:
+
+```bash
+ssh -L 8080:10.10.1.37:8080 opc@<PUBLIC_IP>
+```
+
+Then:
+
+```text
+http://localhost:8080/jobtracker/
+```
 
 ---
 
-## WildFly Deployment Safety
+## WildFly deployment safety
 
-The WildFly deployment process contains several safeguards.
+The JobTracker deployment includes several safeguards.
 
-Before deployment Ansible verifies:
+Before deployment Ansible verifies that:
 
-- WAR exists
-- WAR is a regular non-empty file
-- WAR is a valid ZIP/WAR archive
-- required classes and files exist
-- datasource is available
-- PostgreSQL connectivity through WildFly succeeds
+- the WAR exists
+- the WAR is a regular file
+- the WAR is non-empty
+- the WAR is a valid ZIP/WAR archive
+- required application classes exist
+- `persistence.xml` exists
+- the WildFly datasource exists
+- database connectivity through WildFly succeeds
 
-The JobTracker deployment requires at least:
+Expected WAR contents include:
 
 ```text
 WEB-INF/
@@ -334,41 +447,44 @@ WEB-INF/classes/pl/jobtracker/config/RestApplication.class
 WEB-INF/classes/pl/jobtracker/rest/HealthResource.class
 ```
 
+The deployment is stopped if the artifact does not satisfy the expected structure.
+
 ---
 
-## Artifact Integrity
+## Artifact integrity
 
 Before deployment Ansible calculates the SHA-256 checksum of the source WAR.
 
-After the artifact is copied to WildFly, its SHA-256 checksum is calculated again.
-
-The deployment is accepted only if both checksums match.
-
-Example flow:
+After copying the artifact to WildFly, Ansible calculates the checksum again.
 
 ```text
-GitHub artifact
-      |
-      v
-local WAR SHA-256
-      |
-      v
+source WAR
+    |
+    v
+local SHA-256
+    |
+    v
 Ansible copy
-      |
-      v
-remote WAR SHA-256
-      |
-      v
+    |
+    v
+remote WAR
+    |
+    v
+remote SHA-256
+    |
+    v
 checksum comparison
 ```
 
-The final checksum is stored alongside the deployed application.
+The deployment is accepted only when the checksums match.
+
+This prevents an incomplete or altered transfer from being treated as a valid deployment.
 
 ---
 
-## Automatic Rollback
+## Automatic rollback
 
-Before replacing an existing WAR, Ansible creates a backup.
+Before replacing an existing JobTracker WAR, Ansible creates a backup of the currently deployed artifact.
 
 WildFly deployment markers are monitored:
 
@@ -377,516 +493,295 @@ WildFly deployment markers are monitored:
 .war.failed
 ```
 
-If WildFly reports a failed deployment:
+Failure handling follows this model:
 
 ```text
 new WAR
    |
    v
-deployment failure
+WildFly deployment
    |
-   v
-restore previous WAR
+   +--> success
    |
-   v
-.dodeploy
-   |
-   v
-verify rollback
+   `--> failure
+          |
+          v
+     restore backup
+          |
+          v
+       .dodeploy
+          |
+          v
+     verify rollback
 ```
 
 Older backups are rotated.
+
+This makes the deployment process safer than simply overwriting the active application artifact.
+
+---
+
+## REST runtime verification
+
+A successful WildFly deployment marker alone is not considered sufficient.
+
+The deployment playbook also verifies the running application through REST.
+
+Runtime checks currently cover:
+
+```text
+GET /jobtracker/api/health
+GET /jobtracker/api/companies
+GET /jobtracker/api/offers
+GET /jobtracker/api/applications
+```
+
+Checks include:
+
+```text
+HTTP 200
+Content-Type application/json
+valid JSON
+expected collection structure
+expected response fields
+```
+
+This verifies the application contract instead of testing only whether the TCP port is open.
+
+---
+
+## REST response contract validation
+
+The deployment process validates selected API responses after application startup.
+
+For collection endpoints Ansible verifies that:
+
+- the endpoint responds successfully
+- the response uses `application/json`
+- the body can be parsed as JSON
+- the result is a list
+- expected fields are present in returned objects
+
+This catches problems where:
+
+```text
+WildFly is running
+        |
+        v
+WAR is deployed
+        |
+        v
+HTTP endpoint responds
+        |
+        v
+but application contract is broken
+```
+
+Such a deployment is treated as invalid even if the application server itself is healthy.
+
+---
+
+## End-to-end JobTracker verification
+
+The laboratory contains a dedicated end-to-end playbook:
+
+```text
+jobtracker_e2e.yml
+```
+
+The test validates a complete recruitment data workflow:
+
+```text
+Company
+   |
+   v
+Job Offer
+   |
+   v
+Job Application
+```
+
+The playbook creates test data through the real JobTracker REST API.
+
+The resulting objects are then verified through:
+
+```text
+REST API
+   +
+PostgreSQL
+```
+
+The flow is approximately:
+
+```text
+POST Company
+      |
+      v
+POST Job Offer
+      |
+      v
+POST Job Application
+      |
+      v
+GET / REST verification
+      |
+      v
+direct PostgreSQL SELECT
+      |
+      v
+test data cleanup
+```
+
+The E2E test therefore covers:
+
+```text
+REST
+  |
+  v
+Jakarta EE
+  |
+  v
+JPA / Hibernate
+  |
+  v
+WildFly JTA datasource
+  |
+  v
+PostgreSQL
+```
+
+This verifies the complete application path instead of mocking individual components.
+
+Temporary E2E records are removed when verification is complete.
+
+---
+
+## Deployment verification layers
+
+JobTracker delivery currently contains several verification layers.
+
+```text
+Layer 1
+Maven build
+    |
+    v
+application tests
+
+
+Layer 2
+WAR preflight
+    |
+    v
+artifact structure
+
+
+Layer 3
+SHA-256
+    |
+    v
+artifact integrity
+
+
+Layer 4
+WildFly
+    |
+    v
+deployment marker
+
+
+Layer 5
+REST
+    |
+    v
+runtime health
+
+
+Layer 6
+REST contracts
+    |
+    v
+response structure
+
+
+Layer 7
+E2E
+    |
+    v
+real database persistence
+```
+
+The goal is to detect failures as close as possible to the layer where they occur.
 
 ---
 
 ## Idempotency
 
-Idempotency is treated as a core requirement.
+Idempotency is treated as a core requirement throughout the laboratory.
 
-Running the same automation repeatedly should not introduce unnecessary changes.
+Repeated execution should not introduce unnecessary changes.
 
-For example, deploying an artifact identical to the WAR already installed on WildFly results in:
+For example, deploying an artifact that is already installed should produce a result similar to:
 
 ```text
-oci-ansible01 : ok=19 changed=0 unreachable=0 failed=0
+changed=0
+failed=0
 ```
 
-This confirms that the artifact deployment flow remains idempotent.
+where no configuration or artifact change is required.
+
+Roles are developed and tested with repeatability in mind.
 
 ---
 
-## Inventory Design
+## Terraform to Ansible integration
 
-The inventory is split between local virtual machines and OCI.
+OCI infrastructure is maintained in:
 
 ```text
-inventory/
-├── notebook.ini
-└── oci.ini
+/path/to/oci-terraform-lab
 ```
 
-`notebook.ini` contains local LAB systems.
+Terraform exposes structured information about the OCI hosts.
 
-`oci.ini` is generated from Terraform outputs.
+Ansible uses this data to generate its OCI inventory.
 
-The OCI inventory currently contains:
+The inventory generation script is:
 
-```ini
-[oci]
-oci-ansible01
-oci-ansible02
-oci-ansible03
-
-[appservers]
-oci-ansible01
-
-[nagios_server]
-oci-ansible02
-
-[oci_database]
-oci-ansible03
-
-[monitored_hosts]
-oci-ansible01
-oci-ansible03
-```
-
-The generated OCI inventory is not stored permanently in Git.
-
----
-
-## Terraform to Ansible Integration
-
-Terraform provides infrastructure metadata through outputs.
-
-The Ansible repository uses:
-
-```bash
+```text
 ./scripts/generate-oci-inventory.sh
 ```
 
-to transform Terraform output into an Ansible inventory.
+The complete refresh wrapper is:
 
-The complete refresh workflow is:
-
-```bash
+```text
 ./scripts/refresh-oci-inventory.sh
 ```
 
-The workflow:
-
-```text
-Terraform outputs
-      |
-      v
-ansible_hosts
-      |
-      v
-generate-oci-inventory.sh
-      |
-      v
-inventory/oci.ini
-      |
-      v
-ansible-inventory --graph
-      |
-      v
-Ansible ping
-```
-
-This keeps OCI host addressing and Ansible configuration synchronized with Terraform.
-
----
-
-## PostgreSQL
-
-The OCI PostgreSQL database runs on:
-
-```text
-oci-ansible03
-```
-
-Current version:
-
-```text
-PostgreSQL 18
-```
-
-JobTracker database:
-
-```text
-Database: jobtracker
-User:     jobtracker
-```
-
-Database credentials are stored using Ansible Vault.
-
-The PostgreSQL role manages:
-
-- installation
-- service configuration
-- database provisioning
-- application user provisioning
-- authentication
-- network access
-- connectivity verification
-- monitoring integration
-
----
-
-## WildFly
-
-WildFly runs on:
-
-```text
-oci-ansible01
-```
-
-Current WildFly configuration includes:
-
-- Java 21
-- systemd service
-- PostgreSQL JDBC driver
-- PostgreSQL module
-- datasource management
-- WAR deployment
-- deployment preflight checks
-- SHA-256 verification
-- automatic rollback
-- health verification
-
-Main deployment directory:
-
-```text
-/opt/wildfly/standalone/deployments/
-```
-
----
-
-## Nagios
-
-Nagios runs on:
-
-```text
-oci-ansible02
-```
-
-Monitoring includes infrastructure and application-level checks.
-
-Typical checks include:
-
-```text
-PING
-SSH
-load
-memory
-filesystem
-WildFly
-PostgreSQL
-JobTracker
-```
-
-PostgreSQL connectivity is monitored independently from the application server.
-
-Monitoring agents are installed on monitored OCI hosts using Ansible.
-
----
-
-## Local LAB Infrastructure
-
-The repository also manages local virtual machines used for testing roles before introducing them into OCI.
-
-Examples include:
-
-```text
-Oracle Linux
-RHEL
-Debian
-WildFly
-Tomcat
-PostgreSQL
-Apache
-```
-
-Local systems are useful for:
-
-- role development
-- failure testing
-- bootstrap testing
-- idempotency validation
-- application deployment testing
-- infrastructure experiments
-
----
-
-## Host Bootstrap
-
-Fresh hosts can be normalized before application provisioning.
-
-Example:
-
-```bash
-ansible-playbook bootstrap.yml --limit <host>
-```
-
-The bootstrap role manages:
-
-```text
-Static IPv4
-Default gateway
-DNS
-IPv6 policy
-```
-
-The role supports Debian and Red Hat-family systems.
-
----
-
-## Application Platforms
-
-### WildFly
-
-The original LAB application:
-
-```text
-hello-wildfly.war
-```
-
-uses:
-
-```text
-Datasource: AnsibleLabDS
-JNDI:       java:/jdbc/AnsibleLabDS
-```
-
-Example endpoint:
-
-```text
-http://HOST:8080/hello-wildfly/api/hello/data
-```
-
-### Tomcat
-
-The Tomcat LAB application:
-
-```text
-hello-tomcat.war
-```
-
-uses PostgreSQL through JNDI.
-
-Example endpoint:
-
-```text
-http://HOST:8080/hello-tomcat/hello
-```
-
-These applications remain useful as isolated test workloads for Ansible role development.
-
-JobTracker is the main integrated OCI application.
-
----
-
-## Secrets
-
-Secrets are stored using Ansible Vault.
-
-Encrypted values are maintained under:
-
-```text
-group_vars/all/vault.yml
-```
-
-Examples include:
-
-- PostgreSQL passwords
-- application credentials
-- sudo / become passwords
-
-Secrets are not committed as plaintext.
-
-The local Vault password file is maintained outside the repository.
-
----
-
-## Ansible Collections
-
-External collections required by the repository are declared in:
-
-```text
-requirements.yml
-```
-
-Current collections include:
-
-```text
-ansible.posix
-community.general
-community.postgresql
-```
-
-Install them with:
-
-```bash
-ansible-galaxy collection install -r requirements.yml
-```
-
----
-
-## Repository Structure
-
-Important repository areas:
-
-```text
-.
-├── .github/
-│   └── workflows/
-│       └── ansible-ci.yml
-│
-├── inventory/
-│   ├── notebook.ini
-│   └── oci.ini
-│
-├── group_vars/
-│   ├── all/
-│   └── appservers.yml
-│
-├── roles/
-│   ├── apache/
-│   ├── bootstrap/
-│   ├── java/
-│   ├── monitoring_agent/
-│   ├── nagios_server/
-│   ├── postgresql/
-│   ├── postgresql_oci/
-│   ├── tomcat/
-│   └── wildfly/
-│
-├── scripts/
-│   ├── generate-oci-inventory.sh
-│   ├── refresh-oci-inventory.sh
-│   └── deploy-jobtracker-artifact.sh
-│
-├── artifacts/
-│   └── jobtracker/
-│
-├── bootstrap.yml
-├── jobtracker_deploy.yml
-├── postgresql_oci.yml
-├── wildfly_oci.yml
-├── verify_jobtracker_db.yml
-├── requirements.yml
-└── README.md
-```
-
-The `artifacts/` directory is used only as a local staging area and is ignored by Git.
-
----
-
-## Main Commands
-
-Refresh OCI inventory:
-
-```bash
-./scripts/refresh-oci-inventory.sh
-```
-
-Deploy the newest successful JobTracker CI artifact:
-
-```bash
-./scripts/deploy-jobtracker-artifact.sh
-```
-
-Deploy JobTracker with a local Maven build:
-
-```bash
-ansible-playbook jobtracker_deploy.yml
-```
-
-Deploy a prebuilt WAR:
-
-```bash
-ansible-playbook jobtracker_deploy.yml \
-  -e jobtracker_build_local=false \
-  -e wildfly_war_source=/path/to/jobtracker.war
-```
-
-Check OCI hosts:
-
-```bash
-ansible oci -m ansible.builtin.ping
-```
-
-View inventory:
-
-```bash
-ansible-inventory --graph
-```
-
----
-
-## CI/CD Architecture
-
-The current release architecture is:
-
-```text
-                    GitHub
-                      |
-          +-----------+-----------+
-          |           |           |
-          v           v           v
-     Terraform CI  Ansible CI  JobTracker CI
-          |           |           |
-          |           |           v
-          |           |      jobtracker-war
-          |           |           |
-          v           |           v
-     OCI resources    |     Artifact download
-                      |           |
-                      +-----------+
-                            |
-                            v
-                         Ansible
-                            |
-                            v
-                       WildFly OCI
-                            |
-                            v
-                       PostgreSQL OCI
-                            |
-                            v
-                       Health check
-```
-
-At present deployment is manually triggered through:
-
-```bash
-./scripts/deploy-jobtracker-artifact.sh
-```
-
-This is intentional.
-
-The current architecture first validates the complete artifact-based release flow before automatic CD is introduced.
-
----
-
-## Current Result
-
-The LAB currently provides a complete application delivery path from infrastructure provisioning to runtime verification.
+The workflow is:
 
 ```text
 Terraform
     |
     v
-OCI infrastructure
+ansible_hosts output
     |
     v
-Ansible
-    |
-    +--> Linux
-    +--> WildFly
-    +--> PostgreSQL
-    +--> Nagios
+generate-oci-inventory.sh
     |
     v
-JobTracker CI artifact
+inventory/oci.ini
+    |
+    v
+ansible-inventory validation
+    |
+    v
+Ansible ping
+```
+
+This keeps the Ansible OCI inventory synchronized with Terraform instead of maintaining the same infrastructure metadata manually in two repositories.
+
+---
+
+## Inventory design
+
+The repository separates local and OCI hosts
