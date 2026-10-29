@@ -119,3 +119,39 @@
         fail_msg: >-
           Co najmniej jeden endpoint JobTracker REST
           nie zwrócił oczekiwanej odpowiedzi JSON.
+
+    - name: Validate JobTracker REST response structure
+      ansible.builtin.assert:
+        that:
+          - >-
+            (jobtracker_companies.json | length == 0)
+            or
+            (
+              'id' in jobtracker_companies.json[0]
+              and 'name' in jobtracker_companies.json[0]
+            )
+
+          - >-
+            (jobtracker_offers.json | length == 0)
+            or
+            (
+              'id' in jobtracker_offers.json[0]
+              and 'companyName' in jobtracker_offers.json[0]
+              and 'positionTitle' in jobtracker_offers.json[0]
+            )
+
+          - >-
+            (jobtracker_applications.json | length == 0)
+            or
+            (
+              'id' in jobtracker_applications.json[0]
+              and 'companyName' in jobtracker_applications.json[0]
+              and 'positionTitle' in jobtracker_applications.json[0]
+              and 'currentStatus' in jobtracker_applications.json[0]
+            )
+
+        success_msg: >-
+          JobTracker REST response structure jest zgodna z oczekiwanym kontraktem.
+        fail_msg: >-
+          Co najmniej jeden endpoint JobTracker zwrócił JSON
+          o nieoczekiwanej strukturze.
