@@ -66,3 +66,39 @@
           - '"UP" in jobtracker_health.content'
         success_msg: "JobTracker został poprawnie wdrożony i działa."
         fail_msg: "JobTracker został wdrożony, ale test health endpoint nie przeszedł."
+
+    - name: Smoke test JobTracker companies endpoint
+      ansible.builtin.uri:
+        url: "http://{{ wildfly_bind_address }}:8080/jobtracker/api/companies"
+        method: GET
+        return_content: true
+        status_code: 200
+      register: jobtracker_companies
+      changed_when: false
+
+    - name: Smoke test JobTracker offers endpoint
+      ansible.builtin.uri:
+        url: "http://{{ wildfly_bind_address }}:8080/jobtracker/api/offers"
+        method: GET
+        return_content: true
+        status_code: 200
+      register: jobtracker_offers
+      changed_when: false
+
+    - name: Smoke test JobTracker applications endpoint
+      ansible.builtin.uri:
+        url: "http://{{ wildfly_bind_address }}:8080/jobtracker/api/applications"
+        method: GET
+        return_content: true
+        status_code: 200
+      register: jobtracker_applications
+      changed_when: false
+
+    - name: Confirm JobTracker REST smoke tests
+      ansible.builtin.assert:
+        that:
+          - jobtracker_companies.status == 200
+          - jobtracker_offers.status == 200
+          - jobtracker_applications.status == 200
+        success_msg: "JobTracker REST smoke tests przeszły poprawnie."
+        fail_msg: "Co najmniej jeden endpoint JobTracker REST nie przeszedł smoke testu."
