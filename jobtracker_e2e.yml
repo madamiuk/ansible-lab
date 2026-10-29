@@ -1,0 +1,148 @@
+---
+- name: Prepare JobTracker E2E test
+  hosts: oci_database
+  become: true
+  gather_facts: false
+
+  vars:
+    jobtracker_e2e_company_name: "__JOBTRACKER_E2E_TEST_COMPANY__"
+
+  tasks:
+    - name: Remove stale E2E company before test
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -d
+          - jobtracker
+          - -Atc
+          - "DELETE FROM company WHERE name = '{{ jobtracker_e2e_company_name }}';"
+      become_user: postgres
+      changed_when: false
+
+
+- name: Execute JobTracker REST E2E test
+  hosts: appservers
+  become: false
+  gather_facts: false
+
+  vars:
+    jobtracker_e2e_company_name: "__JOBTRACKER_E2E_TEST_COMPANY__"
+
+  tasks:
+    - name: Create company through JobTracker REST API
+      ansible.builtin.uri:
+        url: "http://{{ wildfly_bind_address }}:8080/jobtracker/api/companies"
+        method: POST
+        body_format: json
+        body:
+          name: "{{ jobtracker_e2e_company_name }}"
+          website: "https://example.invalid"
+          industry: "E2E_TEST"
+          city: "Warsaw"
+          country: "Poland"
+          description: "Automated JobTracker end-to-end test"
+          notes: "Temporary test record"
+        return_content: true
+        status_code: 201
+      register: jobtracker_e2e_create
+      changed_when: false
+
+    - name: Confirm REST creation response
+      ansible.builtin.assert:
+        that:
+          - jobtracker_e2e_create.status == 201
+          - jobtracker_e2e_create.json is defined
+          - jobtracker_e2e_create.json.name == jobtracker_e2e_company_name
+          - jobtracker_e2e_create.json.id is defined
+        success_msg: >-
+          JobTracker REST API poprawnie utworzyło rekord testowy.
+        fail_msg: >-
+          JobTracker REST API nie zwróciło oczekiwanego rekordu.
+
+    - name: Read companies through JobTracker REST API
+      ansible.builtin.uri:
+        url: "http://{{ wildfly_bind_address }}:8080/jobtracker/api/companies"
+        method: GET
+        return_content: true
+        status_code: 200
+      register: jobtracker_e2e_companies
+      changed_when: false
+
+    - name: Confirm created company is visible through REST API
+      ansible.builtin.assert:
+        that:
+          - >-
+            jobtracker_e2e_company_name
+            in
+            (
+              jobtracker_e2e_companies.json
+              | map(attribute='name')
+              | list
+            )
+        success_msg: >-
+          Utworzony rekord jest widoczny przez GET /companies.
+        fail_msg: >-
+          Utworzony rekord nie jest widoczny przez GET /companies.
+
+
+- name: Verify and clean JobTracker E2E test data
+  hosts: oci_database
+  become: true
+  gather_facts: false
+
+  vars:
+    jobtracker_e2e_company_name: "__JOBTRACKER_E2E_TEST_COMPANY__"
+
+  tasks:
+    - name: Verify E2E company directly in PostgreSQL
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -d
+          - jobtracker
+          - -Atc
+          - "SELECT count(*) FROM company WHERE name = '{{ jobtracker_e2e_company_name }}';"
+      become_user: postgres
+      register: jobtracker_e2e_db_result
+      changed_when: false
+
+    - name: Confirm record exists in PostgreSQL
+      ansible.builtin.assert:
+        that:
+          - jobtracker_e2e_db_result.stdout | trim == "1"
+        success_msg: >-
+          Rekord utworzony przez REST API został potwierdzony bezpośrednio w PostgreSQL.
+        fail_msg: >-
+          Rekord utworzony przez REST API nie został odnaleziony w PostgreSQL.
+
+    - name: Remove E2E company from PostgreSQL
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -d
+          - jobtracker
+          - -Atc
+          - "DELETE FROM company WHERE name = '{{ jobtracker_e2e_company_name }}';"
+      become_user: postgres
+      changed_when: false
+
+    - name: Verify E2E cleanup
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -d
+          - jobtracker
+          - -Atc
+          - "SELECT count(*) FROM company WHERE name = '{{ jobtracker_e2e_company_name }}';"
+      become_user: postgres
+      register: jobtracker_e2e_cleanup_result
+      changed_when: false
+
+    - name: Confirm E2E test data was removed
+      ansible.builtin.assert:
+        that:
+          - jobtracker_e2e_cleanup_result.stdout | trim == "0"
+        success_msg: >-
+          Dane testowe JobTracker zostały poprawnie usunięte.
+        fail_msg: >-
+          Dane testowe JobTracker pozostały w bazie.
