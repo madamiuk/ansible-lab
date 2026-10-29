@@ -100,5 +100,22 @@
           - jobtracker_companies.status == 200
           - jobtracker_offers.status == 200
           - jobtracker_applications.status == 200
-        success_msg: "JobTracker REST smoke tests przeszły poprawnie."
-        fail_msg: "Co najmniej jeden endpoint JobTracker REST nie przeszedł smoke testu."
+
+          - "'application/json' in jobtracker_companies.content_type"
+          - "'application/json' in jobtracker_offers.content_type"
+          - "'application/json' in jobtracker_applications.content_type"
+
+          - jobtracker_companies.json is defined
+          - jobtracker_offers.json is defined
+          - jobtracker_applications.json is defined
+
+          - jobtracker_companies.json | type_debug == 'list'
+          - jobtracker_offers.json | type_debug == 'list'
+          - jobtracker_applications.json | type_debug == 'list'
+
+        success_msg: >-
+          JobTracker REST smoke tests przeszły poprawnie:
+          HTTP 200, application/json oraz poprawne listy JSON.
+        fail_msg: >-
+          Co najmniej jeden endpoint JobTracker REST
+          nie zwrócił oczekiwanej odpowiedzi JSON.
