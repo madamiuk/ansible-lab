@@ -53,10 +53,31 @@ nagios_server_common_services:
   - description: Memory
     command: "check_nrpe!check_memory"
 
+nagios_server_service_thresholds:
+  wildfly_http:
+    warning_seconds: 2
+    critical_seconds: 5
+
+  postgresql:
+    connection:
+      warning_seconds: 1
+      critical_seconds: 3
+
+    connections:
+      warning: 10
+      critical: 20
+
+    database_size_mb:
+      warning: 500
+      critical: 1000
+
 nagios_server_group_services:
   appservers:
     - description: WildFly HTTP
-      command: "check_http!-p 8080 -u /"
+      command: >-
+        check_http!-p 8080 -u /
+        -w {{ nagios_server_service_thresholds.wildfly_http.warning_seconds }}
+        -c {{ nagios_server_service_thresholds.wildfly_http.critical_seconds }}
 
   oci_database:
     - description: PostgreSQL Process
