@@ -13,5 +13,5 @@ monitoring_agent_threshold_overrides:
     critical_free: 15
 
   total_procs:
-    warning: 200
+    warning: 275
     critical: 350
