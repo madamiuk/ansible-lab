@@ -3,7 +3,7 @@
 define host {
     use                     linux-server
     host_name               {{ monitored_host }}
-    alias                   {{ nagios_server_host_settings.get(monitored_host, {}).get('alias', monitored_host) }}
+    alias                   {{ monitored_host }}
     address                 {{ hostvars[monitored_host].private_ip }}
 }
 
@@ -16,11 +16,15 @@ define service {
 }
 {% endfor %}
 
-{% for service in nagios_server_host_settings.get(monitored_host, {}).get('extra_services', []) %}
+{% for group_name, services in nagios_server_group_services.items() %}
+{% if monitored_host in (groups[group_name] | default([])) %}
+{% for service in services %}
 define service {
     use                     generic-service
     host_name               {{ monitored_host }}
     service_description     {{ service.description }}
     check_command           {{ service.command }}
 }
+{% endfor %}
+{% endif %}
 {% endfor %}
