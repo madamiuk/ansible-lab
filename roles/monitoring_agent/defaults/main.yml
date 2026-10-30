@@ -15,3 +15,35 @@ monitoring_agent_allowed_hosts:
   - 10.10.1.176
 
 monitoring_agent_nrpe_port: 5666
+
+monitoring_agent_thresholds:
+  users:
+    warning: 5
+    critical: 10
+
+  load:
+    warning: "5,4,3"
+    critical: "10,8,6"
+
+  root_disk:
+    warning_free: "20%"
+    critical_free: "10%"
+
+  swap:
+    warning_free: "20%"
+    critical_free: "10%"
+
+  zombie_procs:
+    warning: 5
+    critical: 10
+
+  total_procs:
+    warning: 250
+    critical: 400
+
+  memory:
+    warning_free: 20
+    critical_free: 10
+
+  postgresql_process:
+    critical: "1:"

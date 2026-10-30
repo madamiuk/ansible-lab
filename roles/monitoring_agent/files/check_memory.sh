@@ -1,7 +1,17 @@
 #!/bin/bash
 
-WARNING_FREE=20
-CRITICAL_FREE=10
+WARNING_FREE="${1:-20}"
+CRITICAL_FREE="${2:-10}"
+
+if ! [[ "$WARNING_FREE" =~ ^[0-9]+$ && "$CRITICAL_FREE" =~ ^[0-9]+$ ]]; then
+    echo "UNKNOWN - memory thresholds must be integers"
+    exit 3
+fi
+
+if (( CRITICAL_FREE >= WARNING_FREE )); then
+    echo "UNKNOWN - critical free memory threshold must be lower than warning threshold"
+    exit 3
+fi
 
 MEM_TOTAL_KB=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo)
 MEM_AVAILABLE_KB=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)
