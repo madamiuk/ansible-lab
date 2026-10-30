@@ -4,7 +4,7 @@ define host {
     use                     linux-server
     host_name               oci-ansible03
     alias                   OCI PostgreSQL Database Server
-    address                 {{ nagios_server_postgresql_host }}
+    address                 {{ hostvars['oci-ansible03'].private_ip }}
 }
 
 {% for service in nagios_server_common_services %}

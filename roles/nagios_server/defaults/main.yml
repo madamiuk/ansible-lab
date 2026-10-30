@@ -23,8 +23,6 @@ nagios_server_packages:
 nagios_server_admin_user: nagiosadmin
 nagios_server_admin_password: "{{ vault_nagios_admin_password }}"
 
-nagios_server_application_host: 10.10.1.37
-nagios_server_postgresql_host: 10.10.1.26
 nagios_server_postgresql_port: 5432
 nagios_server_postgresql_database: jobtracker
 nagios_server_postgresql_user: nagios_monitor

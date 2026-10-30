@@ -44,6 +44,7 @@ with open(output_file, "w", encoding="utf-8") as f:
                 f.write(
                     f"{name} "
                     f"ansible_host={data['ansible_host']} "
+                    f"private_ip={data['private_ip']} "
                     f"ansible_user={data['ansible_user']} "
                     f"ansible_python_interpreter=/usr/bin/python3\n"
                 )
