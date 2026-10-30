@@ -4,7 +4,7 @@ define host {
     use                     linux-server
     host_name               oci-ansible01
     alias                   OCI Ansible Application Server
-    address                 10.10.1.37
+    address                 {{ nagios_server_application_host }}
 }
 
 {% for service in nagios_server_common_services %}
