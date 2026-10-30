@@ -47,3 +47,11 @@ monitoring_agent_thresholds:
 
   postgresql_process:
     critical: "1:"
+
+monitoring_agent_threshold_overrides: {}
+
+monitoring_agent_effective_thresholds: >-
+  {{
+    monitoring_agent_thresholds
+    | combine(monitoring_agent_threshold_overrides, recursive=True)
+  }}

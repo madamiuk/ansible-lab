@@ -1,17 +1,17 @@
 # Managed by Ansible
 
-command[check_users]=/usr/lib64/nagios/plugins/check_users -w {{ monitoring_agent_thresholds.users.warning }} -c {{ monitoring_agent_thresholds.users.critical }}
+command[check_users]=/usr/lib64/nagios/plugins/check_users -w {{ monitoring_agent_effective_thresholds.users.warning }} -c {{ monitoring_agent_effective_thresholds.users.critical }}
 
-command[check_load]=/usr/lib64/nagios/plugins/check_load -w {{ monitoring_agent_thresholds.load.warning }} -c {{ monitoring_agent_thresholds.load.critical }}
+command[check_load]=/usr/lib64/nagios/plugins/check_load -w {{ monitoring_agent_effective_thresholds.load.warning }} -c {{ monitoring_agent_effective_thresholds.load.critical }}
 
-command[check_root_disk]=/usr/lib64/nagios/plugins/check_disk -w {{ monitoring_agent_thresholds.root_disk.warning_free }} -c {{ monitoring_agent_thresholds.root_disk.critical_free }} -p /
+command[check_root_disk]=/usr/lib64/nagios/plugins/check_disk -w {{ monitoring_agent_effective_thresholds.root_disk.warning_free }} -c {{ monitoring_agent_effective_thresholds.root_disk.critical_free }} -p /
 
-command[check_swap]=/usr/lib64/nagios/plugins/check_swap -w {{ monitoring_agent_thresholds.swap.warning_free }} -c {{ monitoring_agent_thresholds.swap.critical_free }}
+command[check_swap]=/usr/lib64/nagios/plugins/check_swap -w {{ monitoring_agent_effective_thresholds.swap.warning_free }} -c {{ monitoring_agent_effective_thresholds.swap.critical_free }}
 
-command[check_zombie_procs]=/usr/lib64/nagios/plugins/check_procs -w {{ monitoring_agent_thresholds.zombie_procs.warning }} -c {{ monitoring_agent_thresholds.zombie_procs.critical }} -s Z
+command[check_zombie_procs]=/usr/lib64/nagios/plugins/check_procs -w {{ monitoring_agent_effective_thresholds.zombie_procs.warning }} -c {{ monitoring_agent_effective_thresholds.zombie_procs.critical }} -s Z
 
-command[check_total_procs]=/usr/lib64/nagios/plugins/check_procs -w {{ monitoring_agent_thresholds.total_procs.warning }} -c {{ monitoring_agent_thresholds.total_procs.critical }}
+command[check_total_procs]=/usr/lib64/nagios/plugins/check_procs -w {{ monitoring_agent_effective_thresholds.total_procs.warning }} -c {{ monitoring_agent_effective_thresholds.total_procs.critical }}
 
-command[check_memory]=/usr/lib64/nagios/plugins/check_memory {{ monitoring_agent_thresholds.memory.warning_free }} {{ monitoring_agent_thresholds.memory.critical_free }}
+command[check_memory]=/usr/lib64/nagios/plugins/check_memory {{ monitoring_agent_effective_thresholds.memory.warning_free }} {{ monitoring_agent_effective_thresholds.memory.critical_free }}
 
-command[check_postgresql_process]=/usr/lib64/nagios/plugins/check_procs -c {{ monitoring_agent_thresholds.postgresql_process.critical }} -C postgres
+command[check_postgresql_process]=/usr/lib64/nagios/plugins/check_procs -c {{ monitoring_agent_effective_thresholds.postgresql_process.critical }} -C postgres

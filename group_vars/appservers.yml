@@ -17,3 +17,16 @@ wildfly_datasource_jta: true
 postgresql_db_name: jobtracker
 postgresql_db_user: jobtracker
 postgresql_db_password: "{{ vault_jobtracker_db_password }}"
+
+monitoring_agent_threshold_overrides:
+  load:
+    warning: "2,1.5,1"
+    critical: "4,3,2"
+
+  memory:
+    warning_free: 20
+    critical_free: 10
+
+  total_procs:
+    warning: 250
+    critical: 400

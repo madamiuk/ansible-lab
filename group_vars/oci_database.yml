@@ -1,0 +1,17 @@
+---
+monitoring_agent_threshold_overrides:
+  load:
+    warning: "1.5,1.2,1"
+    critical: "3,2.5,2"
+
+  root_disk:
+    warning_free: "25%"
+    critical_free: "15%"
+
+  memory:
+    warning_free: 25
+    critical_free: 15
+
+  total_procs:
+    warning: 200
+    critical: 350
