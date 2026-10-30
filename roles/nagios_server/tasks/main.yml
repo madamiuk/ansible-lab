@@ -53,17 +53,30 @@
     line: 'cfg_dir=/etc/nagios/conf.d'
   notify: Restart nagios
 
+- name: Validate monitored OCI host metadata
+  ansible.builtin.assert:
+    that:
+      - hostvars[monitored_host].private_ip is defined
+      - hostvars[monitored_host].private_ip | length > 0
+    fail_msg: >-
+      Host {{ monitored_host }} does not have private_ip
+      generated from Terraform.
+  loop: "{{ groups['monitored_hosts'] | default([]) }}"
+  loop_control:
+    loop_var: monitored_host
+    label: "{{ monitored_host }}"
+
 - name: Configure monitored OCI hosts in Nagios
   ansible.builtin.template:
     src: oci-host.cfg.j2
-    dest: "/etc/nagios/conf.d/{{ nagios_host.name }}.cfg"
+    dest: "/etc/nagios/conf.d/{{ monitored_host }}.cfg"
     owner: root
     group: nagios
     mode: "0640"
-  loop: "{{ nagios_server_hosts }}"
+  loop: "{{ groups['monitored_hosts'] | default([]) }}"
   loop_control:
-    loop_var: nagios_host
-    label: "{{ nagios_host.name }}"
+    loop_var: monitored_host
+    label: "{{ monitored_host }}"
   notify: Restart nagios
 
 - name: Configure Nagios NRPE command

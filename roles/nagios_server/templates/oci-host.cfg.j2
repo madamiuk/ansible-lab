@@ -2,24 +2,24 @@
 
 define host {
     use                     linux-server
-    host_name               {{ nagios_host.name }}
-    alias                   {{ nagios_host.alias }}
-    address                 {{ nagios_host.private_ip }}
+    host_name               {{ monitored_host }}
+    alias                   {{ nagios_server_host_settings.get(monitored_host, {}).get('alias', monitored_host) }}
+    address                 {{ hostvars[monitored_host].private_ip }}
 }
 
 {% for service in nagios_server_common_services %}
 define service {
     use                     generic-service
-    host_name               {{ nagios_host.name }}
+    host_name               {{ monitored_host }}
     service_description     {{ service.description }}
     check_command           {{ service.command }}
 }
 {% endfor %}
 
-{% for service in nagios_host.extra_services | default([]) %}
+{% for service in nagios_server_host_settings.get(monitored_host, {}).get('extra_services', []) %}
 define service {
     use                     generic-service
-    host_name               {{ nagios_host.name }}
+    host_name               {{ monitored_host }}
     service_description     {{ service.description }}
     check_command           {{ service.command }}
 }
