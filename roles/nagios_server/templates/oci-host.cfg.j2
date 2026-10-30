@@ -1,0 +1,26 @@
+# Managed by Ansible
+
+define host {
+    use                     linux-server
+    host_name               {{ nagios_host.name }}
+    alias                   {{ nagios_host.alias }}
+    address                 {{ nagios_host.private_ip }}
+}
+
+{% for service in nagios_server_common_services %}
+define service {
+    use                     generic-service
+    host_name               {{ nagios_host.name }}
+    service_description     {{ service.description }}
+    check_command           {{ service.command }}
+}
+{% endfor %}
+
+{% for service in nagios_host.extra_services | default([]) %}
+define service {
+    use                     generic-service
+    host_name               {{ nagios_host.name }}
+    service_description     {{ service.description }}
+    check_command           {{ service.command }}
+}
+{% endfor %}

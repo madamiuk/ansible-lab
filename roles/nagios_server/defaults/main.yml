@@ -52,3 +52,27 @@ nagios_server_common_services:
 
   - description: Memory
     command: "check_nrpe!check_memory"
+
+nagios_server_hosts:
+  - name: oci-ansible01
+    alias: OCI Ansible Application Server
+    private_ip: "{{ hostvars['oci-ansible01'].private_ip }}"
+    extra_services:
+      - description: WildFly HTTP
+        command: "check_http!-p 8080 -u /"
+
+  - name: oci-ansible03
+    alias: OCI PostgreSQL Database Server
+    private_ip: "{{ hostvars['oci-ansible03'].private_ip }}"
+    extra_services:
+      - description: PostgreSQL Process
+        command: "check_nrpe!check_postgresql_process"
+
+      - description: PostgreSQL JobTracker
+        command: check_pgsql_jobtracker
+
+      - description: PostgreSQL Connections
+        command: check_pgsql_connections
+
+      - description: PostgreSQL Database Size
+        command: check_pgsql_database_size
