@@ -28,3 +28,28 @@ nagios_server_postgresql_port: 5432
 nagios_server_postgresql_database: jobtracker
 nagios_server_postgresql_user: nagios_monitor
 nagios_server_postgresql_password: "{{ vault_nagios_monitor_db_password }}"
+
+nagios_server_common_services:
+  - description: PING
+    command: "check_ping!100.0,20%!500.0,60%"
+
+  - description: SSH
+    command: check_ssh
+
+  - description: Load
+    command: "check_nrpe!check_load"
+
+  - description: Root Disk
+    command: "check_nrpe!check_root_disk"
+
+  - description: Users
+    command: "check_nrpe!check_users"
+
+  - description: Processes
+    command: "check_nrpe!check_total_procs"
+
+  - description: Swap
+    command: "check_nrpe!check_swap"
+
+  - description: Memory
+    command: "check_nrpe!check_memory"
