@@ -56,11 +56,13 @@ jobs:
         run: |
           echo "JobTracker CI run ID: ${{ steps.ci.outputs.run_id }}"
 
-      - name: Verify GitHub CLI authentication
+      - name: Verify GitHub access to JobTracker
         env:
           GH_TOKEN: ${{ secrets.JOBTRACKER_CD_TOKEN }}
         run: |
-          gh auth status
+          gh api \
+            repos/madamiuk/jobtracker \
+            --jq '.full_name'
 
       - name: Verify deployment wrapper
         run: |
