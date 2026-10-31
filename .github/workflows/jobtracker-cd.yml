@@ -1,0 +1,73 @@
+name: JobTracker CD
+
+on:
+  repository_dispatch:
+    types:
+      - jobtracker-ci-success
+
+  workflow_dispatch:
+    inputs:
+      ci_run_id:
+        description: "JobTracker CI run ID containing the WAR artifact"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: jobtracker-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy JobTracker to OCI
+    environment: dev
+
+    runs-on: [self-hosted, macOS, ARM64]
+
+    steps:
+      - name: Checkout Ansible repository
+        uses: actions/checkout@v7
+
+      - name: Configure Ansible environment
+        run: |
+          echo "/Users/ma/ansible/venv/bin" >> "$GITHUB_PATH"
+          echo "ANSIBLE_CONFIG=/Users/ma/ansible/ansible.cfg" >> "$GITHUB_ENV"
+
+      - name: Select JobTracker CI run ID
+        id: ci
+        run: |
+          if [[ "${{ github.event_name }}" == "repository_dispatch" ]]; then
+            RUN_ID="${{ github.event.client_payload.ci_run_id }}"
+          else
+            RUN_ID="${{ inputs.ci_run_id }}"
+          fi
+
+          if ! [[ "$RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "ERROR: Invalid JobTracker CI run ID: $RUN_ID"
+            exit 1
+          fi
+
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Show deployment source
+        run: |
+          echo "JobTracker CI run ID: ${{ steps.ci.outputs.run_id }}"
+
+      - name: Verify GitHub CLI authentication
+        run: |
+          gh auth status
+
+      - name: Verify deployment wrapper
+        run: |
+          test -x /Users/ma/ansible/scripts/deploy-jobtracker-artifact.sh
+          bash -n /Users/ma/ansible/scripts/deploy-jobtracker-artifact.sh
+
+      - name: Deploy JobTracker and run E2E tests
+        env:
+          RUN_E2E: "true"
+        run: |
+          /Users/ma/ansible/scripts/deploy-jobtracker-artifact.sh \
+            "${{ steps.ci.outputs.run_id }}"
