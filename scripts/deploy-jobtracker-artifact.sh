@@ -10,31 +10,37 @@ ANSIBLE_DIR="/Users/ma/ansible"
 ARTIFACT_DIR="${ANSIBLE_DIR}/artifacts/jobtracker"
 WAR_PATH="${ARTIFACT_DIR}/jobtracker.war"
 PLAYBOOK="${ANSIBLE_DIR}/jobtracker_deploy.yml"
+E2E_PLAYBOOK="${ANSIBLE_DIR}/jobtracker_e2e.yml"
 
-echo "==> Szukam najnowszego poprawnego runu JobTracker CI..."
+if [[ $# -ge 1 ]]; then
+  RUN_ID="$1"
+  echo "==> Używam wskazanego JobTracker CI run ID: ${RUN_ID}"
+else
+  echo "==> Szukam najnowszego poprawnego runu JobTracker CI..."
 
-RUN_ID="$(
-  gh run list \
-    --repo "${REPO}" \
-    --workflow "${WORKFLOW}" \
-    --branch main \
-    --status success \
-    --limit 1 \
-    --json databaseId \
-    --jq '.[0].databaseId'
-)"
+  RUN_ID="$(
+    gh run list \
+      --repo "${REPO}" \
+      --workflow "${WORKFLOW}" \
+      --branch main \
+      --status success \
+      --limit 1 \
+      --json databaseId \
+      --jq '.[0].databaseId'
+  )"
 
-if [[ -z "${RUN_ID}" || "${RUN_ID}" == "null" ]]; then
-  echo "ERROR: Nie znaleziono poprawnego runu JobTracker CI."
-  exit 1
+  if [[ -z "${RUN_ID}" || "${RUN_ID}" == "null" ]]; then
+    echo "ERROR: Nie znaleziono poprawnego runu JobTracker CI."
+    exit 1
+  fi
+
+  echo "==> Znaleziono run ID: ${RUN_ID}"
 fi
-
-echo "==> Run ID: ${RUN_ID}"
 
 mkdir -p "${ARTIFACT_DIR}"
 rm -f "${ARTIFACT_DIR}"/*
 
-echo "==> Pobieram artifact ${ARTIFACT_NAME}..."
+echo "==> Pobieram artifact ${ARTIFACT_NAME} z runu ${RUN_ID}..."
 
 gh run download "${RUN_ID}" \
   --repo "${REPO}" \
@@ -67,3 +73,12 @@ ansible-playbook \
   "${PLAYBOOK}" \
   -e jobtracker_build_local=false \
   -e wildfly_war_source="${WAR_PATH}"
+
+if [[ "${RUN_E2E:-false}" == "true" ]]; then
+  echo "==> Uruchamiam JobTracker E2E..."
+
+  ansible-playbook \
+    "${E2E_PLAYBOOK}"
+fi
+
+echo "==> JobTracker deployment zakończony poprawnie."
