@@ -57,6 +57,8 @@ jobs:
           echo "JobTracker CI run ID: ${{ steps.ci.outputs.run_id }}"
 
       - name: Verify GitHub CLI authentication
+        env:
+          GH_TOKEN: ${{ secrets.JOBTRACKER_CD_TOKEN }}
         run: |
           gh auth status
 
@@ -67,6 +69,7 @@ jobs:
 
       - name: Deploy JobTracker and run E2E tests
         env:
+          GH_TOKEN: ${{ secrets.JOBTRACKER_CD_TOKEN }}
           RUN_E2E: "true"
         run: |
           /Users/ma/ansible/scripts/deploy-jobtracker-artifact.sh \
