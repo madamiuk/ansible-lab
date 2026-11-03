@@ -54,6 +54,17 @@
     state: present
   notify: Restart PostgreSQL
 
+- name: Configure Nextcloud access in pg_hba.conf
+  community.postgresql.postgresql_pg_hba:
+    dest: "{{ postgresql_oci_hba_file }}"
+    contype: host
+    databases: "{{ postgresql_oci_nextcloud_db_name }}"
+    users: "{{ postgresql_oci_nextcloud_db_user }}"
+    address: "{{ postgresql_oci_nextcloud_allowed_host }}"
+    method: scram-sha-256
+    state: present
+  notify: Restart PostgreSQL
+
 - name: Configure Nagios monitoring access in pg_hba.conf
   community.postgresql.postgresql_pg_hba:
     dest: "{{ postgresql_oci_hba_file }}"
@@ -70,6 +81,17 @@
     rich_rule: >-
       rule family="ipv4"
       source address="{{ postgresql_oci_allowed_host }}"
+      port port="{{ postgresql_oci_port }}" protocol="tcp"
+      accept
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Allow PostgreSQL from Nextcloud server
+  ansible.posix.firewalld:
+    rich_rule: >-
+      rule family="ipv4"
+      source address="{{ postgresql_oci_nextcloud_allowed_host }}"
       port port="{{ postgresql_oci_port }}" protocol="tcp"
       accept
     permanent: true
@@ -96,6 +118,15 @@
     state: present
   no_log: true
 
+- name: Create Nextcloud PostgreSQL user
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    name: "{{ postgresql_oci_nextcloud_db_user }}"
+    password: "{{ postgresql_oci_nextcloud_db_password }}"
+    role_attr_flags: LOGIN
+    state: present
+  no_log: true
+
 - name: Create Nagios PostgreSQL monitoring user
   become_user: postgres
   community.postgresql.postgresql_user:
@@ -110,6 +141,14 @@
   community.postgresql.postgresql_db:
     name: "{{ postgresql_oci_db_name }}"
     owner: "{{ postgresql_oci_db_user }}"
+    state: present
+
+- name: Create Nextcloud database
+  become_user: postgres
+  community.postgresql.postgresql_db:
+    name: "{{ postgresql_oci_nextcloud_db_name }}"
+    owner: "{{ postgresql_oci_nextcloud_db_user }}"
+    encoding: UTF8
     state: present
 
 - name: Grant Nagios monitoring user CONNECT to JobTracker database

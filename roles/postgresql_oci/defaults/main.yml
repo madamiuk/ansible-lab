@@ -15,13 +15,21 @@ postgresql_oci_listen_addresses:
   - 127.0.0.1
   - 10.10.1.26
 
-postgresql_oci_allowed_host: 10.10.1.37/32
 postgresql_oci_port: 5432
 
+# JobTracker
+postgresql_oci_allowed_host: 10.10.1.37/32
 postgresql_oci_db_name: jobtracker
 postgresql_oci_db_user: jobtracker
 postgresql_oci_db_password: "{{ vault_jobtracker_db_password }}"
 
+# Nextcloud
+postgresql_oci_nextcloud_allowed_host: 10.10.1.50/32
+postgresql_oci_nextcloud_db_name: nextcloud
+postgresql_oci_nextcloud_db_user: nextcloud
+postgresql_oci_nextcloud_db_password: "{{ vault_nextcloud_db_password }}"
+
+# Nagios
 postgresql_oci_monitoring_host: 10.10.1.176/32
 postgresql_oci_monitoring_user: nagios_monitor
 postgresql_oci_monitoring_password: "{{ vault_nagios_monitor_db_password }}"
