@@ -2,7 +2,7 @@
 
 [![Ansible CI](https://github.com/madamiuk/ansible-lab/actions/workflows/ansible-ci.yml/badge.svg)](https://github.com/madamiuk/ansible-lab/actions/workflows/ansible-ci.yml)
 
-Hands-on infrastructure automation laboratory built around **Ansible**, **Linux**, **Oracle Cloud Infrastructure**, **WildFly**, **PostgreSQL**, **Nagios**, **GitHub Actions** and the **JobTracker** Java application.
+Hands-on infrastructure automation laboratory built around **Ansible**, **Linux**, **Oracle Cloud Infrastructure**, **WildFly**, **PostgreSQL**, **Nagios**, **Nextcloud**, **GitHub Actions** and the **JobTracker** Java application.
 
 The project focuses on practical System Engineering, Infrastructure as Code and DevOps workflows rather than isolated configuration examples.
 
@@ -27,6 +27,10 @@ The laboratory covers:
 - end-to-end application testing
 - Nagios monitoring
 - OCI Monitoring
+- Nextcloud deployment and administration
+- nginx / PHP-FPM / Redis
+- Let's Encrypt TLS
+- two-factor authentication
 - idempotency
 - troubleshooting real infrastructure dependencies
 
@@ -54,9 +58,17 @@ Oracle Cloud Infrastructure
         |       Nagios
         |
         +--> oci-ansible03
+        |       Oracle Linux 9
+        |       PostgreSQL 18
+        |       jobtracker database
+        |       nextcloud database
+        |
+        +--> oci-docs01
                 Oracle Linux 9
-                PostgreSQL 18
-                jobtracker database
+                Nextcloud 35
+                nginx
+                PHP-FPM
+                Redis
 
 
 madamiuk/ansible-lab
@@ -65,6 +77,10 @@ madamiuk/ansible-lab
         +--> WildFly
         +--> PostgreSQL
         +--> Nagios
+        +--> Nextcloud
+        +--> nginx / PHP-FPM / Redis
+        +--> Let's Encrypt
+        +--> Fail2ban
         +--> JobTracker deployment
         +--> runtime verification
         +--> end-to-end tests
@@ -110,10 +126,18 @@ Oracle Cloud Infrastructure
 │   ├── Oracle Linux 9
 │   └── Nagios
 │
-└── oci-ansible03
+├── oci-ansible03
+│   ├── Oracle Linux 9
+│   ├── PostgreSQL 18
+│   ├── jobtracker database
+│   └── nextcloud database
+│
+└── oci-docs01
     ├── Oracle Linux 9
-    ├── PostgreSQL 18
-    └── jobtracker database
+    ├── Nextcloud 35
+    ├── nginx
+    ├── PHP-FPM
+    └── Redis
 ```
 
 Private addressing:
@@ -126,7 +150,15 @@ oci-ansible03    10.10.1.26
 
 Application traffic between WildFly and PostgreSQL uses the private OCI network.
 
-PostgreSQL runs on a dedicated database host and is never assumed to run locally on the WildFly server.
+PostgreSQL runs on a dedicated database host and is never assumed to run locally on the WildFly or Nextcloud servers.
+
+Nextcloud runs on the dedicated `oci-docs01` host and uses PostgreSQL on `oci-ansible03` over the OCI private network.
+
+Public Nextcloud endpoint:
+
+```text
+https://cloud.haszcze.eu.org
+```
 
 ---
 
@@ -147,6 +179,9 @@ PostgreSQL
         |
         v
 Nagios
+        |
+        v
+Nextcloud
         |
         v
 JobTracker deployment
@@ -801,6 +836,254 @@ http://localhost:8080/jobtracker/
 
 ---
 
+# Nextcloud
+
+Nextcloud provides the document storage and collaboration layer of the lab.
+
+The service is intended primarily for:
+
+- PDF documents
+- Markdown files
+- LaTeX source files
+- configuration files
+- technical documentation
+- project documentation
+
+It is not intended primarily as a photo or video storage platform.
+
+Public endpoint:
+
+```text
+https://cloud.haszcze.eu.org
+```
+
+The service runs on `oci-docs01`.
+
+Current stack:
+
+```text
+Oracle Linux 9
+      |
+      v
+    nginx
+      |
+      v
+   PHP-FPM
+      |
+      v
+  Nextcloud 35
+      |
+      +--> Redis
+      |
+      +--> PostgreSQL
+               |
+               v
+         oci-ansible03
+```
+
+---
+
+## Nextcloud Ansible role
+
+Primary role:
+
+```text
+roles/nextcloud_server/
+```
+
+Primary playbook:
+
+```text
+nextcloud_server.yml
+```
+
+The role manages:
+
+- nginx
+- PHP-FPM
+- Redis
+- Nextcloud installation and configuration
+- PostgreSQL connectivity
+- Let's Encrypt certificates
+- cron through systemd timer/service units
+- Fail2ban
+- required Nextcloud applications
+- nginx static-asset handling
+
+Role templates include:
+
+```text
+fail2ban-jail.local.j2
+nextcloud-cron.service.j2
+nextcloud-cron.timer.j2
+nextcloud.conf.j2
+```
+
+---
+
+## Nextcloud database
+
+Nextcloud uses PostgreSQL on the dedicated database server:
+
+```text
+oci-ansible03
+```
+
+Traffic follows:
+
+```text
+oci-docs01 / Nextcloud
+        |
+        | OCI private network
+        v
+oci-ansible03 / PostgreSQL
+```
+
+Database credentials are managed with Ansible Vault and are not stored in plaintext in the repository.
+
+---
+
+## HTTPS and DNS
+
+Public DNS:
+
+```text
+cloud.haszcze.eu.org
+```
+
+points to `oci-docs01`.
+
+TLS is provided by Let's Encrypt.
+
+nginx accepts public web traffic on:
+
+```text
+80/tcp
+443/tcp
+```
+
+Port `80` is used for ACME validation and HTTP-to-HTTPS redirection.
+
+Port `443` provides the encrypted Nextcloud service.
+
+OCI DNS and Security List configuration are maintained in the Terraform repository.
+
+---
+
+## JavaScript module MIME handling
+
+Nextcloud 35 uses ES modules with the `.mjs` extension.
+
+During initial deployment nginx returned `.mjs` resources as:
+
+```text
+application/octet-stream
+```
+
+which caused browser module-loading failures.
+
+The nginx template was corrected to load standard MIME mappings and explicitly support:
+
+```nginx
+types {
+    text/javascript mjs;
+    application/wasm wasm;
+}
+```
+
+After the fix, `.mjs` resources return:
+
+```text
+content-type: text/javascript
+```
+
+and the Nextcloud frontend loads correctly.
+
+---
+
+## Authentication and client access
+
+The current Nextcloud setup includes:
+
+- standard username/password authentication
+- TOTP two-factor authentication
+- backup codes
+- WebAuthn capability
+
+Backup codes were generated and successfully validated with a real login.
+
+A normal non-administrative account is used for client access.
+
+The Nextcloud iOS client has also been successfully connected.
+
+WebAuthn / passkey authentication with an Apple device remains a planned follow-up improvement.
+
+---
+
+## Nextcloud validation
+
+Nextcloud status is verified with:
+
+```bash
+sudo -u nginx php /var/www/nextcloud/occ status
+```
+
+Validated state:
+
+```text
+installed: true
+versionstring: 35.0.2
+maintenance: false
+needsDbUpgrade: false
+```
+
+nginx configuration is validated with:
+
+```bash
+sudo nginx -t
+```
+
+Representative `.mjs` validation:
+
+```bash
+curl -I \
+  https://cloud.haszcze.eu.org/dist/twofactor_backupcodes-settings-personal.mjs
+```
+
+Expected response includes:
+
+```text
+HTTP/2 200
+content-type: text/javascript
+```
+
+---
+
+## Nextcloud hardening
+
+The next stage of the project is dedicated Nextcloud hardening.
+
+Planned review areas include:
+
+- nginx security headers
+- HSTS
+- TLS configuration
+- PHP-FPM hardening
+- file and directory permissions
+- Redis locking configuration
+- brute-force protection
+- Fail2ban validation
+- unnecessary application exposure
+- WebAuthn
+- 2FA policy
+- cron execution
+- Nextcloud security warnings
+- monitoring of `oci-docs01`
+
+Permanent changes should be implemented through Ansible rather than by editing the server manually.
+
+---
+
 # Terraform to Ansible integration
 
 OCI infrastructure is managed in:
@@ -861,6 +1144,7 @@ oci
 appservers
 nagios_server
 oci_database
+nextcloud
 monitored_hosts
 ```
 
@@ -880,6 +1164,10 @@ oci-ansible03
     oci
     oci_database
     monitored_hosts
+
+oci-docs01
+    oci
+    nextcloud
 ```
 
 Terraform is the source of truth for OCI host role groups.
@@ -985,7 +1273,9 @@ PostgreSQL database size
 
 Nagios is complemented by native OCI Monitoring.
 
-The OCI environment currently contains monitoring alarms for all three compute instances.
+The OCI Monitoring configuration currently covers the original three compute instances: oci-ansible01, oci-ansible02 and oci-ansible03.
+
+Monitoring of oci-docs01 is planned as a follow-up step.
 
 Monitored areas include:
 
@@ -1090,6 +1380,7 @@ Important repository areas include:
 │   ├── linux_baseline/
 │   ├── monitoring_agent/
 │   ├── nagios_server/
+│   ├── nextcloud_server/
 │   ├── postgresql/
 │   ├── tomcat/
 │   └── wildfly/
@@ -1105,6 +1396,7 @@ Important repository areas include:
 ├── jobtracker_e2e.yml
 ├── monitoring_agent.yml
 ├── nagios_server.yml
+├── nextcloud_server.yml
 ├── oci_baseline.yml
 ├── ansible.cfg
 └── README.md
@@ -1165,7 +1457,7 @@ JobTracker
 
 ## Prefer private communication
 
-Application-to-database traffic uses OCI private networking.
+Application-to-database and Nextcloud-to-database traffic use OCI private networking.
 
 Administrative application ports are not intentionally exposed publicly.
 
@@ -1177,11 +1469,17 @@ The laboratory currently provides a working integrated platform with:
 
 - Terraform-managed OCI infrastructure,
 - Terraform-generated Ansible inventory data,
-- Oracle Linux hosts,
+- four Oracle Linux 9 hosts,
 - WildFly,
 - PostgreSQL 18,
 - JobTracker,
 - Nagios,
+- Nextcloud 35,
+- nginx / PHP-FPM / Redis,
+- Let's Encrypt HTTPS,
+- TOTP two-factor authentication,
+- validated backup-code login,
+- iPhone client access,
 - OCI Monitoring,
 - Ansible Vault,
 - Ansible CI,
@@ -1232,6 +1530,9 @@ The laboratory is designed to continue evolving toward realistic production-styl
 
 Future areas may include:
 
+- Nextcloud security hardening,
+- monitoring of `oci-docs01`,
+- WebAuthn / passkey rollout,
 - further application lifecycle automation,
 - PostgreSQL backup automation,
 - restore testing,
