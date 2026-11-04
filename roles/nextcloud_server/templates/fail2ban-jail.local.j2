@@ -1,0 +1,10 @@
+[DEFAULT]
+bantime  = {{ nextcloud_server_fail2ban_bantime }}
+findtime = {{ nextcloud_server_fail2ban_findtime }}
+maxretry = {{ nextcloud_server_fail2ban_maxretry }}
+
+banaction = firewallcmd-rich-rules
+
+[sshd]
+enabled = true
+backend = systemd

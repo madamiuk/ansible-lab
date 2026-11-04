@@ -1,0 +1,709 @@
+---
+# ---------------------------------------------------------------------------
+# PHP module stream
+# ---------------------------------------------------------------------------
+
+- name: Check enabled PHP module stream
+  ansible.builtin.command:
+    cmd: dnf module list php --enabled
+  register: nextcloud_server_php_module_status
+  changed_when: false
+  failed_when: false
+
+- name: Enable PHP module stream
+  ansible.builtin.command:
+    cmd: "dnf module enable -y php:{{ nextcloud_server_php_stream }}"
+  when: nextcloud_server_php_stream not in nextcloud_server_php_module_status.stdout
+
+
+# ---------------------------------------------------------------------------
+# Packages
+# ---------------------------------------------------------------------------
+
+- name: Install Nextcloud base packages
+  ansible.builtin.dnf:
+    name: "{{ nextcloud_server_packages }}"
+    state: present
+    update_cache: true
+
+
+# ---------------------------------------------------------------------------
+# Directories
+# ---------------------------------------------------------------------------
+
+- name: Create Nextcloud web root
+  ansible.builtin.file:
+    path: "{{ nextcloud_server_web_root }}"
+    state: directory
+    owner: nginx
+    group: nginx
+    mode: "0755"
+
+- name: Create Nextcloud data directory
+  ansible.builtin.file:
+    path: "{{ nextcloud_server_data_dir }}"
+    state: directory
+    owner: nginx
+    group: nginx
+    mode: "0750"
+
+- name: Create ACME webroot
+  ansible.builtin.file:
+    path: "{{ nextcloud_server_acme_webroot }}/.well-known/acme-challenge"
+    state: directory
+    owner: nginx
+    group: nginx
+    mode: "0755"
+
+
+# ---------------------------------------------------------------------------
+# SELinux
+# ---------------------------------------------------------------------------
+
+- name: Configure SELinux context for Nextcloud web root
+  community.general.sefcontext:
+    target: "{{ nextcloud_server_web_root }}(/.*)?"
+    setype: httpd_sys_rw_content_t
+    state: present
+
+- name: Apply SELinux context to Nextcloud web root
+  ansible.builtin.command:
+    cmd: "restorecon -RFv {{ nextcloud_server_web_root }}"
+  register: nextcloud_server_restorecon_web
+  changed_when: nextcloud_server_restorecon_web.stdout | length > 0
+
+- name: Configure SELinux context for Nextcloud data directory
+  community.general.sefcontext:
+    target: "{{ nextcloud_server_data_dir }}(/.*)?"
+    setype: httpd_sys_rw_content_t
+    state: present
+
+- name: Apply SELinux context to Nextcloud data directory
+  ansible.builtin.command:
+    cmd: "restorecon -RFv {{ nextcloud_server_data_dir }}"
+  register: nextcloud_server_restorecon_data
+  changed_when: nextcloud_server_restorecon_data.stdout | length > 0
+
+- name: Allow web application to connect to database through SELinux
+  ansible.posix.seboolean:
+    name: httpd_can_network_connect_db
+    state: true
+    persistent: true
+
+- name: Allow PHP-FPM outbound network connections
+  ansible.posix.seboolean:
+    name: httpd_can_network_connect
+    state: true
+    persistent: true
+
+# ---------------------------------------------------------------------------
+# Firewall
+# ---------------------------------------------------------------------------
+
+- name: Allow HTTP and HTTPS in firewalld
+  ansible.posix.firewalld:
+    zone: public
+    service: "{{ item }}"
+    state: enabled
+    permanent: true
+    immediate: true
+  loop: "{{ nextcloud_server_firewalld_services }}"
+
+
+# ---------------------------------------------------------------------------
+# PHP-FPM
+# ---------------------------------------------------------------------------
+
+- name: Configure PHP-FPM user
+  ansible.builtin.lineinfile:
+    path: /etc/php-fpm.d/www.conf
+    regexp: '^user\s*='
+    line: 'user = nginx'
+  notify: Restart PHP-FPM
+
+- name: Configure PHP-FPM group
+  ansible.builtin.lineinfile:
+    path: /etc/php-fpm.d/www.conf
+    regexp: '^group\s*='
+    line: 'group = nginx'
+  notify: Restart PHP-FPM
+
+- name: Configure PHP-FPM socket owner
+  ansible.builtin.lineinfile:
+    path: /etc/php-fpm.d/www.conf
+    regexp: '^;?listen\.owner\s*='
+    line: 'listen.owner = nginx'
+  notify: Restart PHP-FPM
+
+- name: Configure PHP-FPM socket group
+  ansible.builtin.lineinfile:
+    path: /etc/php-fpm.d/www.conf
+    regexp: '^;?listen\.group\s*='
+    line: 'listen.group = nginx'
+  notify: Restart PHP-FPM
+
+- name: Configure PHP-FPM socket permissions
+  ansible.builtin.lineinfile:
+    path: /etc/php-fpm.d/www.conf
+    regexp: '^;?listen\.mode\s*='
+    line: 'listen.mode = 0660'
+  notify: Restart PHP-FPM
+
+- name: Ensure PHP session directory permissions
+  ansible.builtin.file:
+    path: /var/lib/php/session
+    state: directory
+    owner: root
+    group: nginx
+    mode: "0770"
+
+- name: Configure PHP memory limit
+  ansible.builtin.lineinfile:
+    path: /etc/php.ini
+    regexp: '^memory_limit\s*='
+    line: 'memory_limit = 512M'
+  notify: Restart PHP-FPM
+
+- name: Enable APCu for PHP CLI
+  ansible.builtin.copy:
+    dest: /etc/php.d/99-nextcloud-cli.ini
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      apc.enable_cli=1
+
+- name: Ensure PHP-FPM is enabled and running
+  ansible.builtin.service:
+    name: "{{ nextcloud_server_php_fpm_service }}"
+    state: started
+    enabled: true
+
+
+# ---------------------------------------------------------------------------
+# Redis
+# ---------------------------------------------------------------------------
+
+- name: Disable Redis TCP listener
+  ansible.builtin.lineinfile:
+    path: /etc/redis/redis.conf
+    regexp: '^port\s+'
+    line: 'port 0'
+  notify: Restart Redis
+
+- name: Configure Redis UNIX socket
+  ansible.builtin.lineinfile:
+    path: /etc/redis/redis.conf
+    regexp: '^#?\s*unixsocket\s+'
+    line: "unixsocket {{ nextcloud_server_redis_socket }}"
+  notify: Restart Redis
+
+- name: Configure Redis UNIX socket permissions
+  ansible.builtin.lineinfile:
+    path: /etc/redis/redis.conf
+    regexp: '^#?\s*unixsocketperm\s+'
+    line: 'unixsocketperm 770'
+  notify: Restart Redis
+
+- name: Allow nginx user to access Redis socket
+  ansible.builtin.user:
+    name: nginx
+    groups: redis
+    append: true
+  notify:
+    - Restart PHP-FPM
+    - Restart nginx
+
+- name: Ensure Redis is enabled and running
+  ansible.builtin.service:
+    name: "{{ nextcloud_server_redis_service }}"
+    state: started
+    enabled: true
+
+
+# ---------------------------------------------------------------------------
+# Fail2ban
+# ---------------------------------------------------------------------------
+
+- name: Check enabled repositories for Fail2ban
+  ansible.builtin.command:
+    cmd: dnf repolist --enabled
+  register: nextcloud_server_enabled_repos
+  changed_when: false
+
+- name: Enable Oracle Linux EPEL repository
+  ansible.builtin.command:
+    cmd: "dnf config-manager --set-enable {{ nextcloud_server_epel_repo }}"
+  when: nextcloud_server_epel_repo not in nextcloud_server_enabled_repos.stdout
+
+- name: Install Fail2ban packages
+  ansible.builtin.dnf:
+    name: "{{ nextcloud_server_fail2ban_packages }}"
+    state: present
+
+- name: Install Fail2ban local configuration
+  ansible.builtin.template:
+    src: fail2ban-jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Fail2ban
+
+- name: Ensure Fail2ban is enabled and running
+  ansible.builtin.service:
+    name: fail2ban
+    state: started
+    enabled: true
+
+
+# ---------------------------------------------------------------------------
+# Nextcloud application files
+# ---------------------------------------------------------------------------
+
+- name: Check whether Nextcloud files already exist
+  ansible.builtin.stat:
+    path: "{{ nextcloud_server_web_root }}/occ"
+  register: nextcloud_server_occ_before
+
+- name: Download Nextcloud archive
+  ansible.builtin.get_url:
+    url: "{{ nextcloud_server_download_url }}"
+    dest: "{{ nextcloud_server_archive }}"
+    mode: "0644"
+  when: not nextcloud_server_occ_before.stat.exists
+
+- name: Extract Nextcloud archive
+  ansible.builtin.unarchive:
+    src: "{{ nextcloud_server_archive }}"
+    dest: /var/www
+    remote_src: true
+    owner: nginx
+    group: nginx
+  when: not nextcloud_server_occ_before.stat.exists
+
+- name: Ensure Nextcloud ownership
+  ansible.builtin.file:
+    path: "{{ nextcloud_server_web_root }}"
+    state: directory
+    owner: nginx
+    group: nginx
+    recurse: true
+
+- name: Check Nextcloud installation status
+  ansible.builtin.command:
+    argv:
+      - php
+      - "{{ nextcloud_server_web_root }}/occ"
+      - status
+      - --output=json
+  become_user: nginx
+  register: nextcloud_server_status
+  changed_when: false
+  failed_when: false
+
+- name: Install Nextcloud
+  ansible.builtin.command:
+    argv:
+      - php
+      - "{{ nextcloud_server_web_root }}/occ"
+      - maintenance:install
+      - --database
+      - pgsql
+      - --database-host
+      - "{{ nextcloud_server_db_host }}"
+      - --database-port
+      - "{{ nextcloud_server_db_port | string }}"
+      - --database-name
+      - "{{ nextcloud_server_db_name }}"
+      - --database-user
+      - "{{ nextcloud_server_db_user }}"
+      - --database-pass
+      - "{{ nextcloud_server_db_password }}"
+      - --admin-user
+      - "{{ nextcloud_server_admin_user }}"
+      - --admin-pass
+      - "{{ nextcloud_server_admin_password }}"
+      - --data-dir
+      - "{{ nextcloud_server_data_dir }}"
+  become_user: nginx
+  no_log: true
+  when: >
+    '"installed":true' not in
+    (nextcloud_server_status.stdout | default(''))
+
+# ---------------------------------------------------------------------------
+# Nextcloud trusted domain
+# ---------------------------------------------------------------------------
+
+- name: Read Nextcloud trusted domain
+  ansible.builtin.command:
+    argv:
+      - php
+      - "{{ nextcloud_server_web_root }}/occ"
+      - config:system:get
+      - trusted_domains
+      - "1"
+  become_user: nginx
+  register: nextcloud_server_trusted_domain_current
+  changed_when: false
+  failed_when: false
+
+- name: Configure Nextcloud trusted domain
+  ansible.builtin.command:
+    argv:
+      - php
+      - "{{ nextcloud_server_web_root }}/occ"
+      - config:system:set
+      - trusted_domains
+      - "1"
+      - --value={{ nextcloud_server_trusted_domain }}
+  become_user: nginx
+  when:
+    - nextcloud_server_trusted_domain_current.stdout | trim
+      != nextcloud_server_trusted_domain
+
+
+# ---------------------------------------------------------------------------
+# Nextcloud HTTPS settings
+# ---------------------------------------------------------------------------
+
+- name: Read Nextcloud CLI URL
+  ansible.builtin.command:
+    argv:
+      - php
+      - "{{ nextcloud_server_web_root }}/occ"
+      - config:system:get
+      - overwrite.cli.url
+  become_user: nginx
+  register: nextcloud_server_cli_url_current
+  changed_when: false
+  failed_when: false
+
+- name: Configure Nextcloud CLI URL
+  ansible.builtin.command:
+    argv:
+      - php
+      - "{{ nextcloud_server_web_root }}/occ"
+      - config:system:set
+      - overwrite.cli.url
+      - --value=https://{{ nextcloud_server_trusted_domain }}
+  become_user: nginx
+  when:
+    - nextcloud_server_cli_url_current.stdout | trim
+      != 'https://' ~ nextcloud_server_trusted_domain
+
+- name: Read Nextcloud HTTPS protocol
+  ansible.builtin.command:
+    argv:
+      - php
+      - "{{ nextcloud_server_web_root }}/occ"
+      - config:system:get
+      - overwriteprotocol
+  become_user: nginx
+  register: nextcloud_server_overwriteprotocol_current
+  changed_when: false
+  failed_when: false
+
+- name: Configure Nextcloud HTTPS protocol
+  ansible.builtin.command:
+    argv:
+      - php
+      - "{{ nextcloud_server_web_root }}/occ"
+      - config:system:set
+      - overwriteprotocol
+      - --value=https
+  become_user: nginx
+  when: nextcloud_server_overwriteprotocol_current.stdout | trim != 'https'
+
+
+# ---------------------------------------------------------------------------
+# Nextcloud local cache - APCu
+# ---------------------------------------------------------------------------
+
+- name: Read Nextcloud local cache
+  ansible.builtin.command:
+    argv:
+      - php
+      - "{{ nextcloud_server_web_root }}/occ"
+      - config:system:get
+      - memcache.local
+  become_user: nginx
+  register: nextcloud_server_apcu_current
+  changed_when: false
+  failed_when: false
+
+- name: Configure APCu as Nextcloud local cache
+  ansible.builtin.command:
+    argv:
+      - php
+      - "{{ nextcloud_server_web_root }}/occ"
+      - config:system:set
+      - memcache.local
+      - --value=\OC\Memcache\APCu
+  become_user: nginx
+  when: nextcloud_server_apcu_current.stdout | trim != '\OC\Memcache\APCu'
+
+
+# ---------------------------------------------------------------------------
+# Nextcloud file locking - Redis
+# ---------------------------------------------------------------------------
+
+- name: Read Nextcloud locking cache
+  ansible.builtin.command:
+    argv:
+      - php
+      - "{{ nextcloud_server_web_root }}/occ"
+      - config:system:get
+      - memcache.locking
+  become_user: nginx
+  register: nextcloud_server_redis_locking_current
+  changed_when: false
+  failed_when: false
+
+- name: Configure Redis for Nextcloud file locking
+  ansible.builtin.command:
+    argv:
+      - php
+      - "{{ nextcloud_server_web_root }}/occ"
+      - config:system:set
+      - memcache.locking
+      - --value=\OC\Memcache\Redis
+  become_user: nginx
+  when:
+    - nextcloud_server_redis_locking_current.stdout | trim
+      != '\OC\Memcache\Redis'
+
+- name: Read Nextcloud Redis socket
+  ansible.builtin.command:
+    argv:
+      - php
+      - "{{ nextcloud_server_web_root }}/occ"
+      - config:system:get
+      - redis
+      - host
+  become_user: nginx
+  register: nextcloud_server_redis_socket_current
+  changed_when: false
+  failed_when: false
+
+- name: Configure Nextcloud Redis socket
+  ansible.builtin.command:
+    argv:
+      - php
+      - "{{ nextcloud_server_web_root }}/occ"
+      - config:system:set
+      - redis
+      - host
+      - --value={{ nextcloud_server_redis_socket }}
+  become_user: nginx
+  when:
+    - nextcloud_server_redis_socket_current.stdout | trim
+      != nextcloud_server_redis_socket
+
+- name: Read Nextcloud Redis socket port
+  ansible.builtin.command:
+    argv:
+      - php
+      - "{{ nextcloud_server_web_root }}/occ"
+      - config:system:get
+      - redis
+      - port
+  become_user: nginx
+  register: nextcloud_server_redis_port_current
+  changed_when: false
+  failed_when: false
+
+- name: Configure Nextcloud Redis socket port
+  ansible.builtin.command:
+    argv:
+      - php
+      - "{{ nextcloud_server_web_root }}/occ"
+      - config:system:set
+      - redis
+      - port
+      - --type=integer
+      - --value=0
+  become_user: nginx
+  when: nextcloud_server_redis_port_current.stdout | trim != '0'
+
+
+# ---------------------------------------------------------------------------
+# nginx bootstrap / Let's Encrypt
+# ---------------------------------------------------------------------------
+
+- name: Check whether Let's Encrypt certificate exists
+  ansible.builtin.stat:
+    path: "/etc/letsencrypt/live/{{ nextcloud_server_server_name }}/fullchain.pem"
+  register: nextcloud_server_certificate
+
+- name: Install temporary HTTP configuration for ACME
+  ansible.builtin.copy:
+    dest: /etc/nginx/conf.d/nextcloud.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      server {
+          listen 80;
+          listen [::]:80;
+
+          server_name {{ nextcloud_server_server_name }};
+
+          location ^~ /.well-known/acme-challenge/ {
+              root {{ nextcloud_server_acme_webroot }};
+              default_type text/plain;
+              try_files $uri =404;
+          }
+
+          location / {
+              return 404;
+          }
+      }
+  when: not nextcloud_server_certificate.stat.exists
+  notify: Restart nginx
+
+- name: Validate temporary nginx configuration
+  ansible.builtin.command:
+    cmd: nginx -t
+  changed_when: false
+  when: not nextcloud_server_certificate.stat.exists
+
+- name: Ensure nginx is enabled and running for ACME
+  ansible.builtin.service:
+    name: "{{ nextcloud_server_nginx_service }}"
+    state: started
+    enabled: true
+
+- name: Flush nginx handler before certificate request
+  ansible.builtin.meta: flush_handlers
+
+- name: Obtain Let's Encrypt certificate
+  ansible.builtin.command:
+    argv:
+      - certbot
+      - certonly
+      - --webroot
+      - --webroot-path
+      - "{{ nextcloud_server_acme_webroot }}"
+      - --domain
+      - "{{ nextcloud_server_server_name }}"
+      - --email
+      - "{{ nextcloud_server_letsencrypt_email }}"
+      - --agree-tos
+      - --non-interactive
+  args:
+    creates: "/etc/letsencrypt/live/{{ nextcloud_server_server_name }}/fullchain.pem"
+
+
+# ---------------------------------------------------------------------------
+# Final nginx configuration
+# ---------------------------------------------------------------------------
+
+- name: Install Nextcloud nginx configuration
+  ansible.builtin.template:
+    src: nextcloud.conf.j2
+    dest: /etc/nginx/conf.d/nextcloud.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart nginx
+
+- name: Validate nginx configuration
+  ansible.builtin.command:
+    cmd: nginx -t
+  changed_when: false
+
+- name: Ensure nginx is enabled and running
+  ansible.builtin.service:
+    name: "{{ nextcloud_server_nginx_service }}"
+    state: started
+    enabled: true
+
+# ---------------------------------------------------------------------------
+# Minimal Nextcloud application set
+# ---------------------------------------------------------------------------
+
+- name: Read enabled Nextcloud applications
+  ansible.builtin.command:
+    argv:
+      - php
+      - "{{ nextcloud_server_web_root }}/occ"
+      - app:list
+      - --enabled
+      - --output=json
+  become_user: nginx
+  register: nextcloud_server_enabled_apps_raw
+  changed_when: false
+
+- name: Parse enabled Nextcloud applications
+  ansible.builtin.set_fact:
+    nextcloud_server_enabled_apps: >-
+      {{
+        (nextcloud_server_enabled_apps_raw.stdout | from_json).enabled.keys()
+        | list
+      }}
+  changed_when: false
+
+- name: Disable unnecessary Nextcloud applications
+  ansible.builtin.command:
+    argv:
+      - php
+      - "{{ nextcloud_server_web_root }}/occ"
+      - app:disable
+      - "{{ item }}"
+  become_user: nginx
+  loop: "{{ nextcloud_server_disabled_apps }}"
+  when: item in nextcloud_server_enabled_apps
+
+- name: Read Nextcloud background jobs mode
+  ansible.builtin.command:
+    argv:
+      - php
+      - "{{ nextcloud_server_web_root }}/occ"
+      - config:app:get
+      - core
+      - backgroundjobs_mode
+  become_user: nginx
+  register: nextcloud_server_backgroundjobs_mode
+  changed_when: false
+
+- name: Configure Nextcloud background jobs to use Webcron
+  ansible.builtin.command:
+    argv:
+      - php
+      - "{{ nextcloud_server_web_root }}/occ"
+      - background:webcron
+  become_user: nginx
+  when: nextcloud_server_backgroundjobs_mode.stdout | trim != "webcron"
+
+# ---------------------------------------------------------------------------
+# Nextcloud background jobs - systemd timer
+# ---------------------------------------------------------------------------
+
+- name: Install Nextcloud cron systemd service
+  ansible.builtin.template:
+    src: nextcloud-cron.service.j2
+    dest: /etc/systemd/system/nextcloud-cron.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Install Nextcloud cron systemd timer
+  ansible.builtin.template:
+    src: nextcloud-cron.timer.j2
+    dest: /etc/systemd/system/nextcloud-cron.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Flush handlers before enabling Nextcloud cron timer
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start Nextcloud cron timer
+  ansible.builtin.systemd:
+    name: nextcloud-cron.timer
+    state: started
+    enabled: true

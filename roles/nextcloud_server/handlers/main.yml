@@ -1,0 +1,24 @@
+---
+- name: Restart PHP-FPM
+  ansible.builtin.service:
+    name: "{{ nextcloud_server_php_fpm_service }}"
+    state: restarted
+
+- name: Restart nginx
+  ansible.builtin.service:
+    name: "{{ nextcloud_server_nginx_service }}"
+    state: restarted
+
+- name: Restart Fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    state: restarted
+
+- name: Restart Redis
+  ansible.builtin.service:
+    name: "{{ nextcloud_server_redis_service }}"
+    state: restarted
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true

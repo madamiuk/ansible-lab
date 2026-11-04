@@ -1,0 +1,86 @@
+---
+nextcloud_server_epel_repo: ol9_developer_EPEL
+
+nextcloud_server_php_stream: "8.3"
+
+nextcloud_server_packages:
+  - nginx
+  - redis
+  - unzip
+  - tar
+  - curl
+  - wget
+  - php
+  - php-fpm
+  - php-cli
+  - php-common
+  - php-curl
+  - php-gd
+  - php-mbstring
+  - php-pgsql
+  - php-xml
+  - php-zip
+  - php-intl
+  - php-opcache
+  - php-pecl-apcu
+  - php-pecl-redis6
+  - php-process
+  - policycoreutils-python-utils
+  - certbot
+  - python3-certbot-nginx
+
+nextcloud_server_web_root: /var/www/nextcloud
+nextcloud_server_data_dir: /srv/nextcloud-data
+nextcloud_server_acme_webroot: /var/www/letsencrypt
+nextcloud_server_letsencrypt_email: "{{ vault_nextcloud_letsencrypt_email }}"
+
+nextcloud_server_firewalld_services:
+  - http
+  - https
+
+nextcloud_server_nginx_service: nginx
+nextcloud_server_redis_service: redis
+nextcloud_server_redis_socket: /run/redis/redis.sock
+nextcloud_server_php_fpm_service: php-fpm
+nextcloud_server_server_name: cloud.haszcze.eu.org
+nextcloud_server_trusted_domain: "cloud.haszcze.eu.org"
+
+nextcloud_server_fail2ban_packages:
+  - fail2ban
+  - fail2ban-firewalld
+
+nextcloud_server_fail2ban_bantime: 1h
+nextcloud_server_fail2ban_findtime: 10m
+nextcloud_server_fail2ban_maxretry: 5
+
+nextcloud_server_version: "35.0.2"
+nextcloud_server_download_url: "https://download.nextcloud.com/server/releases/nextcloud-{{ nextcloud_server_version }}.tar.bz2"
+nextcloud_server_archive: "/tmp/nextcloud-{{ nextcloud_server_version }}.tar.bz2"
+
+nextcloud_server_db_host: "10.10.1.26"
+nextcloud_server_db_port: 5432
+nextcloud_server_db_name: "nextcloud"
+nextcloud_server_db_user: "nextcloud"
+nextcloud_server_db_password: "{{ vault_nextcloud_db_password }}"
+
+nextcloud_server_admin_user: "admin"
+nextcloud_server_admin_password: "{{ vault_nextcloud_admin_password }}"
+
+nextcloud_server_disabled_apps:
+  - circles
+  - contactsinteraction
+  - dashboard
+  - federation
+  - files_downloadlimit
+  - files_reminders
+  - firstrunwizard
+  - nextcloud_announcements
+  - office
+  - photos
+  - recommendations
+  - related_resources
+  - sharebymail
+  - support
+  - survey_client
+  - user_status
+  - weather_status

@@ -1,0 +1,10 @@
+[Unit]
+Description=Nextcloud background jobs via local Webcron
+After=network.target nginx.service php-fpm.service
+Requires=nginx.service php-fpm.service
+
+[Service]
+Type=oneshot
+User=nginx
+Group=nginx
+ExecStart=/usr/bin/curl --silent --show-error --fail --output /dev/null --resolve {{ nextcloud_server_server_name }}:443:127.0.0.1 https://{{ nextcloud_server_server_name }}/cron.php
