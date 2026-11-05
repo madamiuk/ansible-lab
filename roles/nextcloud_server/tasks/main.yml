@@ -47,6 +47,24 @@
     group: nginx
     mode: "0750"
 
+- name: Create Nextcloud log directory
+  ansible.builtin.file:
+    path: "{{ nextcloud_server_log_dir }}"
+    state: directory
+    owner: nginx
+    group: nginx
+    mode: "0750"
+
+- name: Ensure Nextcloud log file exists
+  ansible.builtin.file:
+    path: "{{ nextcloud_server_log_file }}"
+    state: touch
+    owner: nginx
+    group: nginx
+    mode: "0640"
+    access_time: preserve
+    modification_time: preserve
+
 - name: Create ACME webroot
   ansible.builtin.file:
     path: "{{ nextcloud_server_acme_webroot }}/.well-known/acme-challenge"
@@ -83,6 +101,18 @@
     cmd: "restorecon -RFv {{ nextcloud_server_data_dir }}"
   register: nextcloud_server_restorecon_data
   changed_when: nextcloud_server_restorecon_data.stdout | length > 0
+
+- name: Configure SELinux context for Nextcloud log directory
+  community.general.sefcontext:
+    target: "{{ nextcloud_server_log_dir }}(/.*)?"
+    setype: httpd_log_t
+    state: present
+
+- name: Apply SELinux context to Nextcloud log directory
+  ansible.builtin.command:
+    cmd: "restorecon -RFv {{ nextcloud_server_log_dir }}"
+  register: nextcloud_server_restorecon_log
+  changed_when: nextcloud_server_restorecon_log.stdout | length > 0
 
 - name: Allow web application to connect to database through SELinux
   ansible.posix.seboolean:
@@ -222,42 +252,6 @@
 
 
 # ---------------------------------------------------------------------------
-# Fail2ban
-# ---------------------------------------------------------------------------
-
-- name: Check enabled repositories for Fail2ban
-  ansible.builtin.command:
-    cmd: dnf repolist --enabled
-  register: nextcloud_server_enabled_repos
-  changed_when: false
-
-- name: Enable Oracle Linux EPEL repository
-  ansible.builtin.command:
-    cmd: "dnf config-manager --set-enable {{ nextcloud_server_epel_repo }}"
-  when: nextcloud_server_epel_repo not in nextcloud_server_enabled_repos.stdout
-
-- name: Install Fail2ban packages
-  ansible.builtin.dnf:
-    name: "{{ nextcloud_server_fail2ban_packages }}"
-    state: present
-
-- name: Install Fail2ban local configuration
-  ansible.builtin.template:
-    src: fail2ban-jail.local.j2
-    dest: /etc/fail2ban/jail.local
-    owner: root
-    group: root
-    mode: "0644"
-  notify: Restart Fail2ban
-
-- name: Ensure Fail2ban is enabled and running
-  ansible.builtin.service:
-    name: fail2ban
-    state: started
-    enabled: true
-
-
-# ---------------------------------------------------------------------------
 # Nextcloud application files
 # ---------------------------------------------------------------------------
 
@@ -331,6 +325,103 @@
   when: >
     '"installed":true' not in
     (nextcloud_server_status.stdout | default(''))
+
+# -----------------------------------------------------------------------------
+# Nextcloud logging
+# -----------------------------------------------------------------------------
+
+- name: Read configured Nextcloud log file
+  ansible.builtin.command:
+    cmd: >
+      php {{ nextcloud_server_web_root }}/occ
+      config:system:get logfile
+  become: true
+  become_user: nginx
+  register: nextcloud_server_logfile_current
+  changed_when: false
+  failed_when: false
+
+- name: Read configured Nextcloud log rotation size
+  ansible.builtin.command:
+    argv:
+      - php
+      - "{{ nextcloud_server_web_root }}/occ"
+      - config:system:get
+      - log_rotate_size
+  become_user: nginx
+  register: nextcloud_server_log_rotate_size_current
+  changed_when: false
+  failed_when: false
+
+- name: Configure Nextcloud application log file
+  ansible.builtin.command:
+    cmd: >
+      php {{ nextcloud_server_web_root }}/occ
+      log:file
+      --file={{ nextcloud_server_log_file }}
+      --rotate-size={{ nextcloud_server_log_rotate_size }}
+  become: true
+  become_user: nginx
+  when:
+    - >
+      nextcloud_server_logfile_current.stdout | trim
+      != nextcloud_server_log_file
+      or
+      nextcloud_server_log_rotate_size_current.stdout | trim
+      != nextcloud_server_log_rotate_size | string
+
+# ---------------------------------------------------------------------------
+# Fail2ban
+# ---------------------------------------------------------------------------
+
+- name: Check enabled repositories for Fail2ban
+  ansible.builtin.command:
+    cmd: dnf repolist --enabled
+  register: nextcloud_server_enabled_repos
+  changed_when: false
+
+- name: Enable Oracle Linux EPEL repository
+  ansible.builtin.command:
+    cmd: "dnf config-manager --set-enable {{ nextcloud_server_epel_repo }}"
+  when: nextcloud_server_epel_repo not in nextcloud_server_enabled_repos.stdout
+
+- name: Install Fail2ban packages
+  ansible.builtin.dnf:
+    name: "{{ nextcloud_server_fail2ban_packages }}"
+    state: present
+
+- name: Install Fail2ban local configuration
+  ansible.builtin.template:
+    src: fail2ban-jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Fail2ban
+
+- name: Install Nextcloud Fail2ban filter
+  ansible.builtin.template:
+    src: fail2ban-nextcloud.conf.j2
+    dest: /etc/fail2ban/filter.d/nextcloud.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Fail2ban
+
+- name: Install Nextcloud Fail2ban jail
+  ansible.builtin.template:
+    src: fail2ban-nextcloud.local.j2
+    dest: /etc/fail2ban/jail.d/nextcloud.local
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Fail2ban
+
+- name: Ensure Fail2ban is enabled and running
+  ansible.builtin.service:
+    name: fail2ban
+    state: started
+    enabled: true
 
 # ---------------------------------------------------------------------------
 # Nextcloud trusted domain
@@ -668,14 +759,14 @@
   register: nextcloud_server_backgroundjobs_mode
   changed_when: false
 
-- name: Configure Nextcloud background jobs to use Webcron
+- name: Configure Nextcloud background jobs to use cron
   ansible.builtin.command:
     argv:
       - php
       - "{{ nextcloud_server_web_root }}/occ"
-      - background:webcron
+      - background:cron
   become_user: nginx
-  when: nextcloud_server_backgroundjobs_mode.stdout | trim != "webcron"
+  when: nextcloud_server_backgroundjobs_mode.stdout | trim != "cron"
 
 # ---------------------------------------------------------------------------
 # Nextcloud background jobs - systemd timer

@@ -52,6 +52,10 @@ nextcloud_server_fail2ban_packages:
 nextcloud_server_fail2ban_bantime: 1h
 nextcloud_server_fail2ban_findtime: 10m
 nextcloud_server_fail2ban_maxretry: 5
+nextcloud_server_fail2ban_nextcloud_bantime: 86400
+nextcloud_server_fail2ban_nextcloud_findtime: 43200
+nextcloud_server_fail2ban_nextcloud_maxretry: 3
+
 
 nextcloud_server_version: "35.0.2"
 nextcloud_server_download_url: "https://download.nextcloud.com/server/releases/nextcloud-{{ nextcloud_server_version }}.tar.bz2"
@@ -65,6 +69,9 @@ nextcloud_server_db_password: "{{ vault_nextcloud_db_password }}"
 
 nextcloud_server_admin_user: "admin"
 nextcloud_server_admin_password: "{{ vault_nextcloud_admin_password }}"
+nextcloud_server_log_dir: /var/log/nextcloud
+nextcloud_server_log_file: "{{ nextcloud_server_log_dir }}/nextcloud.log"
+nextcloud_server_log_rotate_size: 104857600
 
 nextcloud_server_disabled_apps:
   - circles

@@ -21,6 +21,8 @@ server {
 
     server_name {{ nextcloud_server_server_name }};
 
+    add_header Strict-Transport-Security "max-age=31536000" always;
+
     root {{ nextcloud_server_web_root }};
     index index.php index.html /index.php$request_uri;
 
@@ -52,6 +54,7 @@ server {
 
         fastcgi_intercept_errors on;
         fastcgi_request_buffering off;
+        fastcgi_hide_header X-Powered-By;
     }
 
     location ~ \.(?:css|js|mjs|svg|gif|ico|jpg|png|webp|wasm|tflite|map|ogg|flac|mp4|webm)$ {
@@ -71,7 +74,28 @@ server {
         try_files $uri $uri/ /index.php$request_uri;
     }
 
+    location ^~ /.well-known {
+        location = /.well-known/carddav {
+            return 301 /remote.php/dav/;
+        }
+
+        location = /.well-known/caldav {
+            return 301 /remote.php/dav/;
+        }
+
+        location /.well-known/acme-challenge {
+            try_files $uri $uri/ =404;
+        }
+
+        location /.well-known/pki-validation {
+            try_files $uri $uri/ =404;
+        }
+
+        return 301 /index.php$request_uri;
+    }
+
     location ~ /\.(?!well-known) {
         deny all;
     }
+
 }
