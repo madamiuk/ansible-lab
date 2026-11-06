@@ -49,9 +49,15 @@ nextcloud_server_fail2ban_packages:
   - fail2ban
   - fail2ban-firewalld
 
-nextcloud_server_fail2ban_bantime: 1h
-nextcloud_server_fail2ban_findtime: 10m
-nextcloud_server_fail2ban_maxretry: 5
+nextcloud_server_fail2ban_sshd_bantime: 1h
+nextcloud_server_fail2ban_sshd_findtime: 10m
+nextcloud_server_fail2ban_sshd_maxretry: 5
+
+nextcloud_server_fail2ban_sshd_increment: true
+nextcloud_server_fail2ban_sshd_multipliers: "1 2 4 8 24 72 168 336 720"
+nextcloud_server_fail2ban_sshd_maxtime: 30d
+nextcloud_server_fail2ban_sshd_rndtime: 5m
+
 nextcloud_server_fail2ban_nextcloud_bantime: 86400
 nextcloud_server_fail2ban_nextcloud_findtime: 43200
 nextcloud_server_fail2ban_nextcloud_maxretry: 3

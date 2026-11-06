@@ -1,10 +1,15 @@
 [DEFAULT]
-bantime  = {{ nextcloud_server_fail2ban_bantime }}
-findtime = {{ nextcloud_server_fail2ban_findtime }}
-maxretry = {{ nextcloud_server_fail2ban_maxretry }}
-
 banaction = firewallcmd-rich-rules
 
 [sshd]
 enabled = true
 backend = systemd
+
+bantime = {{ nextcloud_server_fail2ban_sshd_bantime }}
+findtime = {{ nextcloud_server_fail2ban_sshd_findtime }}
+maxretry = {{ nextcloud_server_fail2ban_sshd_maxretry }}
+
+bantime.increment = {{ nextcloud_server_fail2ban_sshd_increment | lower }}
+bantime.multipliers = {{ nextcloud_server_fail2ban_sshd_multipliers }}
+bantime.maxtime = {{ nextcloud_server_fail2ban_sshd_maxtime }}
+bantime.rndtime = {{ nextcloud_server_fail2ban_sshd_rndtime }}
