@@ -58,6 +58,15 @@ nextcloud_server_fail2ban_sshd_multipliers: "1 2 4 8 24 72 168 336 720"
 nextcloud_server_fail2ban_sshd_maxtime: 30d
 nextcloud_server_fail2ban_sshd_rndtime: 5m
 
+nextcloud_server_fail2ban_recidive_sshd_enabled: true
+nextcloud_server_fail2ban_recidive_sshd_findtime: 7d
+nextcloud_server_fail2ban_recidive_sshd_maxretry: 3
+nextcloud_server_fail2ban_recidive_sshd_bantime: 30d
+
+nextcloud_server_abuseipdb_enabled: true
+nextcloud_server_abuseipdb_api_key: "{{ vault_abuseipdb_api_key }}"
+nextcloud_server_abuseipdb_sshd_categories: "18,22"
+
 nextcloud_server_fail2ban_nextcloud_bantime: 86400
 nextcloud_server_fail2ban_nextcloud_findtime: 43200
 nextcloud_server_fail2ban_nextcloud_maxretry: 3

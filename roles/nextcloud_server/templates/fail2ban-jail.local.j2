@@ -13,3 +13,20 @@ bantime.increment = {{ nextcloud_server_fail2ban_sshd_increment | lower }}
 bantime.multipliers = {{ nextcloud_server_fail2ban_sshd_multipliers }}
 bantime.maxtime = {{ nextcloud_server_fail2ban_sshd_maxtime }}
 bantime.rndtime = {{ nextcloud_server_fail2ban_sshd_rndtime }}
+
+[recidive-sshd]
+enabled = {{ nextcloud_server_fail2ban_recidive_sshd_enabled | lower }}
+filter = recidive-sshd
+
+logpath = /var/log/fail2ban.log
+
+banaction = %(banaction_allports)s
+
+findtime = {{ nextcloud_server_fail2ban_recidive_sshd_findtime }}
+maxretry = {{ nextcloud_server_fail2ban_recidive_sshd_maxretry }}
+bantime = {{ nextcloud_server_fail2ban_recidive_sshd_bantime }}
+
+action = %(known/action)s
+{% if nextcloud_server_abuseipdb_enabled %}
+         abuseipdb[abuseipdb_apikey="{{ nextcloud_server_abuseipdb_api_key }}", abuseipdb_category="{{ nextcloud_server_abuseipdb_sshd_categories }}"]
+{% endif %}

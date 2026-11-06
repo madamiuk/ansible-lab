@@ -1,0 +1,15 @@
+# Managed by Ansible
+
+[INCLUDES]
+
+before = common.conf
+
+[Definition]
+
+_daemon = (?:fail2ban(?:-server|\.actions)\s*)
+
+failregex = ^%(__prefix_line)s(?:\s*fail2ban\.actions\s*%(__pid_re)s?:\s+)?NOTICE\s+\[sshd\]\s+Ban\s+<HOST>\s*$
+
+datepattern = ^{DATE}
+
+ignoreregex =

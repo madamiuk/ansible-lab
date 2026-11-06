@@ -396,7 +396,8 @@
     dest: /etc/fail2ban/jail.local
     owner: root
     group: root
-    mode: "0644"
+    mode: "0600"
+  no_log: true
   notify: Restart Fail2ban
 
 - name: Install Nextcloud Fail2ban filter
@@ -412,6 +413,15 @@
   ansible.builtin.template:
     src: fail2ban-nextcloud.local.j2
     dest: /etc/fail2ban/jail.d/nextcloud.local
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Fail2ban
+
+- name: Configure Fail2ban SSH recidive filter
+  ansible.builtin.template:
+    src: fail2ban-recidive-sshd.conf.j2
+    dest: /etc/fail2ban/filter.d/recidive-sshd.conf
     owner: root
     group: root
     mode: "0644"
