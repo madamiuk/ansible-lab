@@ -106,3 +106,5 @@ nextcloud_server_disabled_apps:
   - survey_client
   - user_status
   - weather_status
+
+nextcloud_server_abuseipdb_key_file: /etc/fail2ban/abuseipdb.key

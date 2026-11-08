@@ -28,5 +28,5 @@ bantime = {{ nextcloud_server_fail2ban_recidive_sshd_bantime }}
 
 action = %(known/action)s
 {% if nextcloud_server_abuseipdb_enabled %}
-         abuseipdb[abuseipdb_apikey="{{ nextcloud_server_abuseipdb_api_key }}", abuseipdb_category="{{ nextcloud_server_abuseipdb_sshd_categories }}"]
+        abuseipdb-local[abuseipdb_category="{{ nextcloud_server_abuseipdb_sshd_categories }}"]
 {% endif %}

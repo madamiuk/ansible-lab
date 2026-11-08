@@ -1,0 +1,30 @@
+# Managed by Ansible
+
+[Definition]
+
+norestored = 1
+
+actionstart =
+actionstop =
+actioncheck =
+
+actionban = API_KEY=$(cat {{ nextcloud_server_abuseipdb_key_file }}); \
+            lgm=$(printf '%%.1000s\n...' "<matches>"); \
+            curl -4 \
+              --connect-timeout 10 \
+              --retry 3 \
+              --retry-delay 2 \
+              --retry-connrefused \
+              -sSf \
+              "https://api.abuseipdb.com/api/v2/report" \
+              -H "Accept: application/json" \
+              -H "Key: $API_KEY" \
+              --data-urlencode "comment=$lgm" \
+              --data-urlencode "ip=<ip>" \
+              --data "categories=<abuseipdb_category>"
+
+actionunban =
+
+[Init]
+
+abuseipdb_category =

@@ -390,6 +390,24 @@
     name: "{{ nextcloud_server_fail2ban_packages }}"
     state: present
 
+- name: Install AbuseIPDB API key
+  ansible.builtin.copy:
+    content: "{{ nextcloud_server_abuseipdb_api_key }}\n"
+    dest: "{{ nextcloud_server_abuseipdb_key_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+- name: Install local AbuseIPDB Fail2ban action
+  ansible.builtin.template:
+    src: fail2ban-abuseipdb-local.conf.j2
+    dest: /etc/fail2ban/action.d/abuseipdb-local.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Fail2ban
+
 - name: Install Fail2ban local configuration
   ansible.builtin.template:
     src: fail2ban-jail.local.j2
