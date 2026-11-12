@@ -26,6 +26,7 @@ nextcloud_server_packages:
   - php-pecl-redis6
   - php-process
   - policycoreutils-python-utils
+  - checkpolicy
   - certbot
   - python3-certbot-nginx
 

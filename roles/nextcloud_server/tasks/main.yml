@@ -126,6 +126,56 @@
     state: true
     persistent: true
 
+- name: Create directory for local SELinux policy sources
+  ansible.builtin.file:
+    path: /usr/local/share/selinux
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install Fail2ban AbuseIPDB SELinux policy source
+  ansible.builtin.copy:
+    src: fail2ban_abuseipdb.te
+    dest: /usr/local/share/selinux/fail2ban_abuseipdb.te
+    owner: root
+    group: root
+    mode: "0644"
+  register: nextcloud_server_fail2ban_selinux_policy
+
+- name: Check whether Fail2ban AbuseIPDB SELinux module is installed
+  ansible.builtin.command:
+    cmd: semodule -l
+  register: nextcloud_server_selinux_modules
+  changed_when: false
+
+- name: Compile Fail2ban AbuseIPDB SELinux module
+  ansible.builtin.command:
+    cmd: >-
+      checkmodule -M -m
+      -o /usr/local/share/selinux/fail2ban_abuseipdb.mod
+      /usr/local/share/selinux/fail2ban_abuseipdb.te
+  when:
+    - nextcloud_server_fail2ban_selinux_policy.changed
+      or 'fail2ban_abuseipdb' not in nextcloud_server_selinux_modules.stdout
+
+- name: Build Fail2ban AbuseIPDB SELinux policy package
+  ansible.builtin.command:
+    cmd: >-
+      semodule_package
+      -o /usr/local/share/selinux/fail2ban_abuseipdb.pp
+      -m /usr/local/share/selinux/fail2ban_abuseipdb.mod
+  when:
+    - nextcloud_server_fail2ban_selinux_policy.changed
+      or 'fail2ban_abuseipdb' not in nextcloud_server_selinux_modules.stdout
+
+- name: Install Fail2ban AbuseIPDB SELinux policy
+  ansible.builtin.command:
+    cmd: semodule -i /usr/local/share/selinux/fail2ban_abuseipdb.pp
+  when:
+    - nextcloud_server_fail2ban_selinux_policy.changed
+      or 'fail2ban_abuseipdb' not in nextcloud_server_selinux_modules.stdout
+
 # ---------------------------------------------------------------------------
 # Firewall
 # ---------------------------------------------------------------------------

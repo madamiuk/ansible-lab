@@ -1,0 +1,10 @@
+module fail2ban_abuseipdb 1.0;
+
+require {
+    type http_port_t;
+    type fail2ban_t;
+    class tcp_socket name_connect;
+}
+
+# Allow Fail2ban actions to connect to HTTPS services such as AbuseIPDB.
+allow fail2ban_t http_port_t:tcp_socket name_connect;
