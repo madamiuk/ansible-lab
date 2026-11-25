@@ -1,0 +1,278 @@
+---
+- name: Test bezpieczeństwa połączeń PostgreSQL StoNa100
+  hosts: localhost,rhel01
+  gather_facts: false
+  become: false
+
+  vars:
+    stona100_test_db_host: "192.168.64.20"
+    stona100_test_db_port: "5432"
+    stona100_test_db_name: stona100
+
+    stona100_test_source: >-
+      {{ 'macbook' if inventory_hostname == 'localhost'
+         else 'rhel01' }}
+
+    stona100_test_users:
+      - name: stona100_migrator
+        password: "{{ vault_stona100_db_migrator_password }}"
+        allowed_source: macbook
+
+      - name: stona100_readonly
+        password: "{{ vault_stona100_db_readonly_password }}"
+        allowed_source: macbook
+
+      - name: stona100_app
+        password: "{{ vault_stona100_db_app_password }}"
+        allowed_source: rhel01
+
+    stona100_test_ssl_modes:
+      - require
+      - disable
+
+  tasks:
+    - name: Sprawdź dostępność klienta PostgreSQL
+      ansible.builtin.command:
+        argv:
+          - psql
+          - --version
+      register: stona100_psql_version
+      changed_when: false
+
+    - name: Pokaż wersję klienta PostgreSQL
+      ansible.builtin.debug:
+        var: stona100_psql_version.stdout
+
+    - name: Wykonaj testy połączeń StoNa100
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -X
+          - -w
+          - -A
+          - -t
+          - -v
+          - ON_ERROR_STOP=1
+          - -h
+          - "{{ stona100_test_db_host }}"
+          - -p
+          - "{{ stona100_test_db_port }}"
+          - -U
+          - "{{ item.0.name }}"
+          - -d
+          - "{{ stona100_test_db_name }}"
+          - -c
+          - |
+              SELECT
+                current_user,
+                current_database(),
+                inet_client_addr(),
+                ssl,
+                version,
+                current_setting('search_path'),
+                COALESCE(current_schema()::text, 'NULL'),
+                has_schema_privilege(
+                    current_user, 'stona100', 'USAGE'
+                ),
+                has_schema_privilege(
+                    current_user, 'stona100', 'CREATE'
+                )
+              FROM pg_stat_ssl
+              WHERE pid = pg_backend_pid();
+
+      environment:
+        PGPASSWORD: "{{ item.0.password }}"
+        PGSSLMODE: "{{ item.1 }}"
+        PGCONNECT_TIMEOUT: "5"
+        PGGSSENCMODE: disable
+        LC_ALL: C
+      loop: >-
+        {{
+          stona100_test_users
+          | product(stona100_test_ssl_modes)
+          | list
+        }}
+      register: stona100_connection_results
+      changed_when: false
+      failed_when: false
+      no_log: true
+
+    - name: Przygotuj bezpieczne dane diagnostyczne
+      ansible.builtin.set_fact:
+        stona100_diagnostic_report: >-
+          {{
+            stona100_diagnostic_report | default([])
+            +
+            [{
+              'source': stona100_test_source,
+              'user': item.item.0.name,
+              'sslmode': item.item.1,
+              'rc': item.rc | default(-1),
+              'stdout': item.stdout | default(''),
+              'stderr': (
+                item.stderr | default('')
+                | replace(item.item.0.password, '[REDACTED]')
+              )
+            }]
+          }}
+      loop: "{{ stona100_connection_results.results }}"
+      no_log: true
+
+    - name: Pokaż bezpieczne dane diagnostyczne
+      ansible.builtin.debug:
+        var: stona100_diagnostic_report
+
+    - name: Zweryfikuj wyniki testów połączeń
+      ansible.builtin.assert:
+        that:
+          - >-
+            (
+              item.rc == 0
+              and '|t|' in item.stdout
+            )
+            if expected_allow
+            else
+            (
+              item.rc == 2
+              and
+              (
+                'pg_hba.conf rejects connection' in item.stderr
+                or
+                'pg_hba.conf odrzuca połączenie' in item.stderr
+              )
+            )
+      vars:
+        expected_allow: >-
+          {{
+            item.item.0.allowed_source == stona100_test_source
+            and item.item.1 == 'require'
+          }}
+      loop: "{{ stona100_connection_results.results }}"
+      no_log: true
+
+    - name: Zweryfikuj parametry dozwolonych sesji
+      ansible.builtin.assert:
+        that:
+          - session_fields | length == 9
+          - session_fields[0] == item.user
+          - session_fields[1] == stona100_test_db_name
+          - session_fields[2] == expected_address
+          - session_fields[3] == 't'
+          - session_fields[6] == expected_schema
+          - session_fields[5] == 'stona100'
+          - session_fields[7] == expected_usage
+          - session_fields[8] == 'f'
+        success_msg: >-
+          {{ item.user }}:
+          parametry sesji i uprawnienia poprawne.
+        fail_msg: >-
+          {{ item.user }}:
+          niepoprawne parametry sesji PostgreSQL.
+      vars:
+        session_fields: "{{ item.stdout.split('|') }}"
+        expected_address: >-
+          {{
+            '192.168.64.1'
+            if stona100_test_source == 'macbook'
+            else '192.168.64.16'
+          }}
+        expected_schema: >-
+          {{
+            'NULL'
+            if item.user == 'stona100_migrator'
+            else 'stona100'
+          }}
+        expected_usage: >-
+          {{
+            'f'
+            if item.user == 'stona100_migrator'
+            else 't'
+          }}
+      loop: "{{ stona100_diagnostic_report }}"
+      loop_control:
+        label: "{{ item.user }} / {{ item.sslmode }}"
+      when: item.rc == 0
+
+    - name: Przygotuj bezpieczny raport testów
+      ansible.builtin.set_fact:
+        stona100_test_report: >-
+          {{
+            stona100_test_report | default([])
+            +
+            [{
+              'source': stona100_test_source,
+              'user': item.item.0.name,
+              'sslmode': item.item.1,
+              'result': 'ALLOW' if item.rc == 0 else 'DENY',
+              'status': 'PASS'
+            }]
+          }}
+      loop: "{{ stona100_connection_results.results }}"
+      no_log: true
+
+    - name: Pokaż raport testów bezpieczeństwa
+      ansible.builtin.debug:
+        var: stona100_test_report
+
+    - name: Przetestuj przełączenie migratora na ownera
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -X
+          - -w
+          - -A
+          - -t
+          - -q
+          - -v
+          - ON_ERROR_STOP=1
+          - -h
+          - "{{ stona100_test_db_host }}"
+          - -p
+          - "{{ stona100_test_db_port }}"
+          - -U
+          - stona100_migrator
+          - -d
+          - "{{ stona100_test_db_name }}"
+          - -c
+          - |
+            SET ROLE stona100_owner;
+
+            SELECT
+                session_user,
+                current_user,
+                current_setting('search_path'),
+                current_schema(),
+                has_schema_privilege(
+                    current_user, 'stona100', 'USAGE'
+                ),
+                has_schema_privilege(
+                    current_user, 'stona100', 'CREATE'
+                );
+      environment:
+        PGPASSWORD: "{{ vault_stona100_db_migrator_password }}"
+        PGSSLMODE: require
+        PGCONNECT_TIMEOUT: "5"
+        PGGSSENCMODE: disable
+        LC_ALL: C
+      register: stona100_owner_test
+      changed_when: false
+      no_log: true
+      when: inventory_hostname == 'localhost'
+
+    - name: Zweryfikuj uprawnienia po SET ROLE
+      ansible.builtin.assert:
+        that:
+          - stona100_owner_test.rc == 0
+          - >-
+            stona100_owner_test.stdout | trim ==
+            'stona100_migrator|stona100_owner|stona100|stona100|t|t'
+        success_msg: >-
+          Migrator poprawnie przełącza się
+          na rolę stona100_owner.
+      no_log: true
+      when: inventory_hostname == 'localhost'
+
+    - name: Potwierdź skuteczność SET ROLE
+      ansible.builtin.debug:
+        msg: "SET ROLE stona100_owner: PASS"
+      when: inventory_hostname == 'localhost'

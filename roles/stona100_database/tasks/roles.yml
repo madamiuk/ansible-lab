@@ -1,0 +1,40 @@
+---
+- name: Utwórz rolę właściciela bazy StoNa100
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    login_db: postgres
+    name: "{{ stona100_db_owner }}"
+    role_attr_flags: "NOLOGIN,NOSUPERUSER,NOCREATEDB,NOCREATEROLE,NOREPLICATION,NOBYPASSRLS"
+    state: present
+
+- name: Utwórz użytkowników bazodanowych StoNa100
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    login_db: postgres
+    name: "{{ item.name }}"
+    password: "{{ item.password }}"
+    role_attr_flags: "LOGIN,NOINHERIT,NOSUPERUSER,NOCREATEDB,NOCREATEROLE,NOREPLICATION,NOBYPASSRLS"
+    state: present
+  loop:
+    - name: "{{ stona100_db_migrator }}"
+      password: "{{ stona100_db_migrator_password }}"
+
+    - name: "{{ stona100_db_app_user }}"
+      password: "{{ stona100_db_app_password }}"
+
+    - name: "{{ stona100_db_readonly_user }}"
+      password: "{{ stona100_db_readonly_password }}"
+  no_log: true
+
+- name: Nadaj migratorowi możliwość przełączenia na właściciela
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_membership:
+    login_db: postgres
+    groups:
+      - "{{ stona100_db_owner }}"
+    target_roles:
+      - "{{ stona100_db_migrator }}"
+    state: present

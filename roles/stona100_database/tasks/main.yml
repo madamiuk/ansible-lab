@@ -1,0 +1,42 @@
+---
+- name: StoNa100 - kontrola wstępna
+  ansible.builtin.import_tasks: preflight.yml
+  tags:
+    - stona100
+    - preflight
+    - db_roles
+    - db_database
+    - db_session
+
+- name: StoNa100 - konfiguracja ról PostgreSQL
+  ansible.builtin.import_tasks: roles.yml
+  tags:
+    - stona100
+    - db_roles
+
+- name: StoNa100 - walidacja ról PostgreSQL
+  ansible.builtin.import_tasks: validation.yml
+  when: not ansible_check_mode
+  tags:
+    - stona100
+    - db_roles
+    - db_database
+    - validation
+
+- name: StoNa100 - utworzenie bazy danych
+  ansible.builtin.import_tasks: database.yml
+  tags:
+    - stona100
+    - db_database
+
+- name: StoNa100 - konfiguracja schematu
+  ansible.builtin.import_tasks: schema.yml
+  tags:
+    - stona100
+    - db_database
+
+- name: StoNa100 - konfiguracja parametrów sesji
+  ansible.builtin.import_tasks: session.yml
+  tags:
+    - stona100
+    - db_session

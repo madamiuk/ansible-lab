@@ -1,0 +1,38 @@
+---
+- name: Sprawdź dostępność PostgreSQL
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_ping:
+    login_db: postgres
+  register: stona100_postgresql_ping
+  changed_when: false
+
+- name: Zweryfikuj dostępność i wersję PostgreSQL
+  ansible.builtin.assert:
+    that:
+      - stona100_postgresql_ping.is_available
+      - stona100_postgresql_ping.server_version.major | int == stona100_db_major_version | int
+    fail_msg: "PostgreSQL jest niedostępny lub ma niezgodną wersję."
+    success_msg: "PostgreSQL jest dostępny i posiada wymaganą wersję."
+
+- name: Sprawdź parametry bezpieczeństwa PostgreSQL
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_query:
+    login_db: postgres
+    query: |
+      SELECT
+          current_setting('server_encoding') AS encoding,
+          current_setting('ssl') AS ssl,
+          current_setting('password_encryption') AS password_encryption
+  register: stona100_postgresql_settings
+  changed_when: false
+
+- name: Zweryfikuj parametry bezpieczeństwa
+  ansible.builtin.assert:
+    that:
+      - stona100_postgresql_settings.query_result[0].encoding == stona100_db_encoding
+      - stona100_postgresql_settings.query_result[0].ssl == 'on'
+      - stona100_postgresql_settings.query_result[0].password_encryption == 'scram-sha-256'
+    fail_msg: "PostgreSQL nie spełnia wymagań StoNa100."
+    success_msg: "Kodowanie UTF8, SSL i SCRAM zostały zweryfikowane."

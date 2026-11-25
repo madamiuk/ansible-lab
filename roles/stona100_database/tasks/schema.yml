@@ -1,0 +1,45 @@
+---
+- name: Utwórz schemat aplikacyjny StoNa100
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_schema:
+    login_db: "{{ stona100_db_name }}"
+    name: "{{ stona100_db_schema }}"
+    owner: "{{ stona100_db_owner }}"
+    state: present
+
+- name: Odbierz uprawnienia PUBLIC do schematu public
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_privs:
+    login_db: "{{ stona100_db_name }}"
+    type: schema
+    objs: public
+    roles: PUBLIC
+    privs: ALL
+    state: absent
+
+- name: Odbierz uprawnienia PUBLIC do schematu StoNa100
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_privs:
+    login_db: "{{ stona100_db_name }}"
+    type: schema
+    objs: "{{ stona100_db_schema }}"
+    roles: PUBLIC
+    privs: ALL
+    state: absent
+
+- name: Nadaj użytkownikom dostęp do schematu StoNa100
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_privs:
+    login_db: "{{ stona100_db_name }}"
+    type: schema
+    objs: "{{ stona100_db_schema }}"
+    roles: "{{ item }}"
+    privs: USAGE
+    state: present
+  loop:
+    - "{{ stona100_db_app_user }}"
+    - "{{ stona100_db_readonly_user }}"

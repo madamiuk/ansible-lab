@@ -1,0 +1,46 @@
+---
+# StoNa100 database server
+
+stona100_db_host: "192.168.64.20"
+stona100_db_admin_address: "192.168.64.1/32"
+stona100_db_app_address: "192.168.64.16/32"
+
+postgresql_prepend_hba_rules:
+  # Allow explicitly authorized TLS connections
+  - contype: hostssl
+    databases: stona100
+    users: stona100_migrator
+    address: "{{ stona100_db_admin_address }}"
+    method: scram-sha-256
+
+  - contype: hostssl
+    databases: stona100
+    users: stona100_readonly
+    address: "{{ stona100_db_admin_address }}"
+    method: scram-sha-256
+
+  - contype: hostssl
+    databases: stona100
+    users: stona100_app
+    address: "{{ stona100_db_app_address }}"
+    method: scram-sha-256
+
+  # Reject local Unix socket connections
+  - contype: local
+    databases: all
+    users: stona100_migrator,stona100_readonly,stona100_app
+    method: reject
+
+  # Reject all remaining IPv4 connections
+  - contype: host
+    databases: all
+    users: stona100_migrator,stona100_readonly,stona100_app
+    address: "0.0.0.0/0"
+    method: reject
+
+  # Reject all remaining IPv6 connections
+  - contype: host
+    databases: all
+    users: stona100_migrator,stona100_readonly,stona100_app
+    address: "::/0"
+    method: reject

@@ -1,0 +1,36 @@
+---
+- name: Utwórz bazę danych StoNa100
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_db:
+    maintenance_db: postgres
+    name: "{{ stona100_db_name }}"
+    owner: "{{ stona100_db_owner }}"
+    encoding: "{{ stona100_db_encoding }}"
+    state: present
+
+- name: Odbierz domyślne uprawnienia PUBLIC do bazy StoNa100
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_privs:
+    login_db: postgres
+    type: database
+    objs: "{{ stona100_db_name }}"
+    roles: PUBLIC
+    privs: ALL
+    state: absent
+
+- name: Nadaj użytkownikom StoNa100 prawo połączenia z bazą
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_privs:
+    login_db: postgres
+    type: database
+    objs: "{{ stona100_db_name }}"
+    roles: "{{ item }}"
+    privs: CONNECT
+    state: present
+  loop:
+    - "{{ stona100_db_migrator }}"
+    - "{{ stona100_db_app_user }}"
+    - "{{ stona100_db_readonly_user }}"

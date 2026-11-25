@@ -1,0 +1,8 @@
+---
+- name: Konfiguracja bazy danych StoNa100
+  hosts: database01
+  become: true
+  gather_facts: true
+
+  roles:
+    - stona100_database

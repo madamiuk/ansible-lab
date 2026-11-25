@@ -1,0 +1,83 @@
+---
+- name: Sprawdź atrybuty ról PostgreSQL StoNa100
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_query:
+    login_db: postgres
+    query: |
+      SELECT
+          rolname,
+          rolcanlogin,
+          rolinherit,
+          rolsuper,
+          rolcreatedb,
+          rolcreaterole,
+          rolreplication,
+          rolbypassrls
+      FROM pg_roles
+      WHERE rolname IN (
+          'stona100_owner',
+          'stona100_migrator',
+          'stona100_app',
+          'stona100_readonly'
+      )
+      ORDER BY rolname;
+  register: stona100_roles_validation
+  changed_when: false
+
+- name: Sprawdź liczbę utworzonych ról
+  ansible.builtin.assert:
+    that:
+      - stona100_roles_validation.query_result | length == 4
+    fail_msg: "Nie utworzono wszystkich wymaganych ról."
+
+- name: Zweryfikuj ograniczenia uprawnień
+  ansible.builtin.assert:
+    that:
+      - not item.rolsuper
+      - not item.rolcreatedb
+      - not item.rolcreaterole
+      - not item.rolreplication
+      - not item.rolbypassrls
+      - item.rolcanlogin == (item.rolname != stona100_db_owner)
+    fail_msg: "Niepoprawne uprawnienia roli {{ item.rolname }}."
+  loop: "{{ stona100_roles_validation.query_result }}"
+  loop_control:
+    label: "{{ item.rolname }}"
+
+- name: Sprawdź członkostwo migratora w roli właściciela
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_query:
+    login_db: postgres
+    query: |
+      SELECT
+          parent.rolname AS granted_role,
+          member.rolname AS member_role,
+          m.admin_option,
+          m.inherit_option,
+          m.set_option
+      FROM pg_auth_members m
+      JOIN pg_roles parent ON parent.oid = m.roleid
+      JOIN pg_roles member ON member.oid = m.member
+      WHERE parent.rolname = 'stona100_owner';
+  register: stona100_membership_validation
+  changed_when: false
+
+- name: Zweryfikuj członkostwo migratora
+  ansible.builtin.assert:
+    that:
+      - stona100_membership_validation.query_result | length == 1
+      - stona100_membership_validation.query_result[0].member_role == stona100_db_migrator
+      - not stona100_membership_validation.query_result[0].admin_option
+      - not stona100_membership_validation.query_result[0].inherit_option
+      - stona100_membership_validation.query_result[0].set_option
+    fail_msg: "Niepoprawna konfiguracja członkostwa migratora."
+
+- name: Pokaż zweryfikowane role PostgreSQL
+  ansible.builtin.debug:
+    var: stona100_roles_validation.query_result
+
+- name: Pokaż zweryfikowane członkostwo ról
+  ansible.builtin.debug:
+    var: stona100_membership_validation.query_result

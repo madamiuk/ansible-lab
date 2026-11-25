@@ -1,0 +1,190 @@
+---
+- name: Test izolacji baz danych PostgreSQL StoNa100
+  hosts: localhost,rhel01,database01
+  gather_facts: false
+  become: false
+
+  vars:
+    stona100_isolation_host: "192.168.64.20"
+    stona100_isolation_port: "5432"
+
+    stona100_isolation_users:
+      - stona100_migrator
+      - stona100_readonly
+      - stona100_app
+
+    stona100_isolation_other_databases:
+      - ansible_lab
+      - postgres
+      - template1
+
+    stona100_isolation_all_databases:
+      - stona100
+      - ansible_lab
+      - postgres
+      - template1
+
+    stona100_isolation_reject_messages:
+      - "pg_hba.conf rejects connection"
+      - "pg_hba.conf odrzuca połączenie"
+
+    stona100_isolation_missing_messages:
+      - "no pg_hba.conf entry"
+      - "brak wpisu w pg_hba.conf"
+
+  environment:
+    LC_ALL: C
+    PGCONNECT_TIMEOUT: "5"
+    PGSSLMODE: require
+    PGGSSENCMODE: disable
+    PGPASSFILE: /dev/null
+    PGPASSWORD: ""
+
+  tasks:
+    - name: Sprawdź dostępność klienta PostgreSQL
+      ansible.builtin.command:
+        argv:
+          - psql
+          - --version
+      changed_when: false
+
+    # Remote cross-database isolation
+
+    - name: Sprawdź izolację zdalnego dostępu do innych baz
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -X
+          - -w
+          - -h
+          - "{{ stona100_isolation_host }}"
+          - -p
+          - "{{ stona100_isolation_port }}"
+          - -U
+          - "{{ item.0 }}"
+          - -d
+          - "{{ item.1 }}"
+          - -c
+          - SELECT current_user;
+      loop: >-
+        {{
+          stona100_isolation_users
+          | product(stona100_isolation_other_databases)
+          | list
+        }}
+      loop_control:
+        label: "{{ item.0 }} -> {{ item.1 }}"
+      register: stona100_remote_isolation
+      changed_when: false
+      failed_when: false
+      when: inventory_hostname in ['localhost', 'rhel01']
+
+    - name: Zweryfikuj izolację zdalną
+      ansible.builtin.assert:
+        that:
+          - item.rc == 2
+          - >-
+            stona100_isolation_reject_messages[0] in item.stderr
+            or
+            stona100_isolation_reject_messages[1] in item.stderr
+        success_msg: >-
+          PASS: {{ item.item.0 }} -> {{ item.item.1 }}
+        fail_msg: "{{ item.stderr }}"
+      loop: "{{ stona100_remote_isolation.results }}"
+      loop_control:
+        label: "{{ item.item.0 }} -> {{ item.item.1 }}"
+      when: inventory_hostname in ['localhost', 'rhel01']
+
+    # Local connection isolation
+
+    - name: Sprawdź izolację połączeń lokalnych
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -X
+          - -w
+          - -h
+          - "{{ item.2 }}"
+          - -p
+          - "{{ stona100_isolation_port }}"
+          - -U
+          - "{{ item.0 }}"
+          - -d
+          - "{{ item.1 }}"
+          - -c
+          - SELECT current_user;
+      loop: >-
+        {{
+          stona100_isolation_users
+          | product(
+              stona100_isolation_all_databases,
+              ['127.0.0.1', '/var/run/postgresql']
+            )
+          | list
+        }}
+      loop_control:
+        label: "{{ item.0 }} -> {{ item.1 }} / {{ item.2 }}"
+      register: stona100_local_isolation
+      changed_when: false
+      failed_when: false
+      when: inventory_hostname == 'database01'
+
+    - name: Zweryfikuj izolację lokalną
+      ansible.builtin.assert:
+        that:
+          - item.rc == 2
+          - >-
+            stona100_isolation_reject_messages[0] in item.stderr
+            or
+            stona100_isolation_reject_messages[1] in item.stderr
+        success_msg: >-
+          PASS: {{ item.item.0 }} ->
+          {{ item.item.1 }} / {{ item.item.2 }}
+        fail_msg: "{{ item.stderr }}"
+      loop: "{{ stona100_local_isolation.results }}"
+      loop_control:
+        label: "{{ item.item.0 }} -> {{ item.item.1 }} / {{ item.item.2 }}"
+      when: inventory_hostname == 'database01'
+
+    # Reverse isolation: existing application -> StoNa100
+
+    - name: Sprawdź dostęp ansible_app do StoNa100
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -X
+          - -w
+          - -h
+          - "{{ stona100_isolation_host }}"
+          - -p
+          - "{{ stona100_isolation_port }}"
+          - -U
+          - ansible_app
+          - -d
+          - stona100
+          - -c
+          - SELECT current_user;
+      register: stona100_reverse_isolation
+      changed_when: false
+      failed_when: false
+      when: inventory_hostname == 'rhel01'
+
+    - name: Zweryfikuj izolację odwrotną
+      ansible.builtin.assert:
+        that:
+          - stona100_reverse_isolation.rc == 2
+          - >-
+            stona100_isolation_missing_messages[0]
+            in stona100_reverse_isolation.stderr
+            or
+            stona100_isolation_missing_messages[1]
+            in stona100_reverse_isolation.stderr
+        success_msg: "PASS: ansible_app -> stona100"
+        fail_msg: "{{ stona100_reverse_isolation.stderr }}"
+      when: inventory_hostname == 'rhel01'
+
+    - name: Pokaż podsumowanie testów izolacji
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }}: {{ stona100_test_count }} testów izolacji zakończonych pomyślnie."
+      vars:
+        stona100_test_count: "{{ 9 if inventory_hostname == 'localhost' else 10 if inventory_hostname == 'rhel01' else 24 }}"

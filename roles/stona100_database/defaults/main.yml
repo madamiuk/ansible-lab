@@ -1,0 +1,30 @@
+---
+# StoNa100 PostgreSQL configuration
+
+stona100_db_name: stona100
+stona100_db_schema: stona100
+stona100_db_major_version: 17
+stona100_db_port: 5432
+stona100_db_encoding: UTF8
+
+# PostgreSQL roles
+stona100_db_owner: stona100_owner
+stona100_db_migrator: stona100_migrator
+stona100_db_app_user: stona100_app
+stona100_db_readonly_user: stona100_readonly
+
+# Connection settings
+stona100_db_sslmode: require
+
+# Passwords stored in Ansible Vault
+stona100_db_migrator_password: "{{ vault_stona100_db_migrator_password }}"
+stona100_db_app_password: "{{ vault_stona100_db_app_password }}"
+stona100_db_readonly_password: "{{ vault_stona100_db_readonly_password }}"
+
+# Session configuration
+stona100_db_search_path: "{{ stona100_db_schema }}"
+
+stona100_db_session_roles:
+  - "{{ stona100_db_migrator }}"
+  - "{{ stona100_db_app_user }}"
+  - "{{ stona100_db_readonly_user }}"

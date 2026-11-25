@@ -1,0 +1,87 @@
+---
+- name: Zweryfikuj identyfikatory PostgreSQL
+  ansible.builtin.assert:
+    that:
+      - item is match('^[a-z_][a-z0-9_]*$')
+    fail_msg: "Niepoprawny identyfikator PostgreSQL."
+  loop: >-
+    {{
+      stona100_db_session_roles
+      + [stona100_db_name, stona100_db_search_path]
+    }}
+
+- name: Odczytaj aktualną konfigurację search_path
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_query:
+    login_db: postgres
+    query: |
+      SELECT EXISTS (
+          SELECT 1
+          FROM pg_db_role_setting s
+          JOIN pg_database d ON d.oid = s.setdatabase
+          JOIN pg_roles r ON r.oid = s.setrole
+          WHERE d.datname = %(database)s
+            AND r.rolname = %(role)s
+            AND %(setting)s = ANY(s.setconfig)
+      ) AS configured;
+    named_args:
+      database: "{{ stona100_db_name }}"
+      role: "{{ item }}"
+      setting: "search_path={{ stona100_db_search_path }}"
+  loop: "{{ stona100_db_session_roles }}"
+  register: stona100_search_path_state
+  changed_when: false
+
+- name: Skonfiguruj search_path dla użytkowników StoNa100
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_query:
+    login_db: postgres
+    query: |
+      ALTER ROLE "{{ item.item }}"
+      IN DATABASE "{{ stona100_db_name }}"
+      SET search_path TO "{{ stona100_db_search_path }}";
+  loop: "{{ stona100_search_path_state.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: not item.query_result[0].configured
+  changed_when: true
+
+- name: Zweryfikuj zapisaną konfigurację search_path
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_query:
+    login_db: postgres
+    query: |
+      SELECT EXISTS (
+          SELECT 1
+          FROM pg_db_role_setting s
+          JOIN pg_database d ON d.oid = s.setdatabase
+          JOIN pg_roles r ON r.oid = s.setrole
+          WHERE d.datname = %(database)s
+            AND r.rolname = %(role)s
+            AND %(setting)s = ANY(s.setconfig)
+      ) AS configured;
+    named_args:
+      database: "{{ stona100_db_name }}"
+      role: "{{ item }}"
+      setting: "search_path={{ stona100_db_search_path }}"
+  loop: "{{ stona100_db_session_roles }}"
+  register: stona100_search_path_validation
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Potwierdź konfigurację wszystkich użytkowników
+  ansible.builtin.assert:
+    that:
+      - item.query_result | length == 1
+      - item.query_result[0].configured | bool
+    success_msg: >-
+      {{ item.item }}: search_path skonfigurowany poprawnie.
+    fail_msg: >-
+      {{ item.item }}: niepoprawna konfiguracja search_path.
+  loop: "{{ stona100_search_path_validation.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: not ansible_check_mode
