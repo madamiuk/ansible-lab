@@ -4,5 +4,7 @@ postgresql_service: postgresql
 postgresql_python_package: python3-psycopg2
 postgresql_acl_package: acl
 
-# Additional application-specific access rules
+# HBA rules evaluated before the standard rules
+postgresql_prepend_hba_rules: []
+# HBA rules evaluated after the standard rules
 postgresql_extra_hba_rules: []

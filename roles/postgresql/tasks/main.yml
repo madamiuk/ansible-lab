@@ -130,10 +130,11 @@
         dest: "{{ postgresql_hba_file }}"
         rules: >-
           {{
-            postgresql_hba_rules
-            +
-            postgresql_extra_hba_rules
+            postgresql_prepend_hba_rules
+            + postgresql_hba_rules
+            + postgresql_extra_hba_rules
           }}
+        sort_rules: false
         overwrite: true
         backup: true
         owner: postgres
