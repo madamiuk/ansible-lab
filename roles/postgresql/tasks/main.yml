@@ -124,12 +124,63 @@
   changed_when: false
 
 - name: Zarządzaj konfiguracją pg_hba.conf
-  community.postgresql.postgresql_pg_hba:
-    dest: "{{ postgresql_hba_file }}"
-    rules: "{{ postgresql_hba_rules }}"
-    overwrite: true
-    backup: true
-    owner: postgres
-    group: postgres
-    mode: "0640"
-  notify: Restart PostgreSQL
+  block:
+    - name: Zapisz komplet reguł dostępu PostgreSQL
+      community.postgresql.postgresql_pg_hba:
+        dest: "{{ postgresql_hba_file }}"
+        rules: >-
+          {{
+            postgresql_hba_rules
+            +
+            postgresql_extra_hba_rules
+          }}
+        overwrite: true
+        backup: true
+        owner: postgres
+        group: postgres
+        mode: "0640"
+      register: postgresql_hba_result
+
+    - name: Sprawdź poprawność konfiguracji pg_hba.conf
+      become: true
+      become_user: postgres
+      community.postgresql.postgresql_query:
+        login_db: postgres
+        query: |
+          SELECT line_number, error
+          FROM pg_hba_file_rules
+          WHERE error IS NOT NULL
+      register: postgresql_hba_validation
+      changed_when: false
+      failed_when: >-
+        (postgresql_hba_validation is failed)
+        or
+        (postgresql_hba_validation.query_result is not defined)
+        or
+        (postgresql_hba_validation.query_result | default([]) | length > 0)
+      when: not ansible_check_mode
+
+    - name: Zleć przeładowanie konfiguracji PostgreSQL
+      ansible.builtin.debug:
+        msg: "Konfiguracja pg_hba.conf została zmieniona."
+      changed_when: true
+      when: postgresql_hba_result.changed
+      notify: Reload PostgreSQL
+
+  rescue:
+    - name: Przywróć kopię konfiguracji pg_hba.conf
+      ansible.builtin.copy:
+        src: "{{ postgresql_hba_result.backup_file }}"
+        dest: "{{ postgresql_hba_file }}"
+        remote_src: true
+        owner: postgres
+        group: postgres
+        mode: "0640"
+      when:
+        - postgresql_hba_result is defined
+        - postgresql_hba_result.backup_file is defined
+        - not ansible_check_mode
+
+    - name: Przerwij wdrożenie niepoprawnej konfiguracji
+      ansible.builtin.fail:
+        msg: "Błąd konfiguracji pg_hba.conf. Wdrożenie przerwane."
