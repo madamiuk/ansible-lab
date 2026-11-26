@@ -1,0 +1,385 @@
+---
+- name: Transakcyjne testy uprawnień StoNa100 v0.8
+  hosts: database01
+  gather_facts: false
+  become: true
+
+  vars:
+    stona100_project_dir: "{{ lookup('env', 'HOME') }}/projects/stona100_v02"
+    stona100_sql_dir: "{{ stona100_project_dir }}/postgresql"
+
+    stona100_test_files:
+      - 001_tables_indexes.sql
+      - 002_views.sql
+      - 003_functions.sql
+      - 004_triggers.sql
+      - 005_migration_history.sql
+      - 007_trigger_fixtures.sql
+      - 010_permissions.sql
+      - 011_test_permissions.sql
+      - 012_test_application_operations.sql
+      - test_migration_permissions.sql
+
+    stona100_expected_tests:
+      - A01
+      - A02
+      - A03
+      - A04
+      - A05
+      - A06
+      - A07
+      - A08
+      - A09
+      - A10
+      - A11
+      - A12
+      - A13
+      - A14
+      - R01
+      - R02
+      - R03
+      - R04
+      - R05
+      - R06
+      - M01
+      - M02
+      - D01
+
+    stona100_psql_args:
+      - /usr/bin/psql
+      - -X
+      - -w
+      - -v
+      - ON_ERROR_STOP=1
+      - -h
+      - /var/run/postgresql
+      - -p
+      - "5432"
+      - -U
+      - postgres
+      - -d
+      - stona100
+
+    stona100_schema_query: >-
+      SELECT
+        (
+          SELECT COUNT(*)
+          FROM pg_class c
+          JOIN pg_namespace n ON n.oid = c.relnamespace
+          WHERE n.nspname = 'stona100'
+        ),
+        (
+          SELECT COUNT(*)
+          FROM pg_proc p
+          JOIN pg_namespace n ON n.oid = p.pronamespace
+          WHERE n.nspname = 'stona100'
+        );
+
+    stona100_acl_query: >-
+      SELECT jsonb_build_object(
+        'schema_acl',
+        (
+          SELECT nspacl::text
+          FROM pg_namespace
+          WHERE nspname = 'stona100'
+        ),
+        'default_acl',
+        (
+          SELECT COALESCE(
+            jsonb_agg(to_jsonb(d) ORDER BY d.oid),
+            '[]'::jsonb
+          )
+          FROM pg_default_acl d
+          WHERE d.defaclrole = 'stona100_owner'::regrole
+        )
+      );
+
+  environment:
+    PGCONNECT_TIMEOUT: "5"
+    PGPASSFILE: /dev/null
+    LC_ALL: C
+
+  tasks:
+
+    - name: Potwierdź właściwy serwer
+      ansible.builtin.assert:
+        that:
+          - inventory_hostname == 'database01'
+          - not ansible_check_mode
+        success_msg: "PASS: database01 confirmed"
+
+    - name: Zweryfikuj manifest DDL
+      ansible.builtin.command:
+        argv:
+          - shasum
+          - -a
+          - "256"
+          - -c
+          - SHA256SUMS
+        chdir: "{{ stona100_sql_dir }}"
+      delegate_to: localhost
+      become: false
+      register: stona100_ddl_checksums
+      changed_when: false
+
+    - name: Zweryfikuj manifest testów funkcjonalnych
+      ansible.builtin.command:
+        argv:
+          - shasum
+          - -a
+          - "256"
+          - -c
+          - postgresql/SHA256SUMS.tests
+        chdir: "{{ stona100_project_dir }}"
+      delegate_to: localhost
+      become: false
+      register: stona100_fixture_checksums
+      changed_when: false
+
+    - name: Zweryfikuj manifest uprawnień
+      ansible.builtin.command:
+        argv:
+          - shasum
+          - -a
+          - "256"
+          - -c
+          - postgresql/SHA256SUMS.permissions
+        chdir: "{{ stona100_project_dir }}"
+      delegate_to: localhost
+      become: false
+      register: stona100_permission_checksums
+      changed_when: false
+
+    - name: Pokaż wyniki kontroli integralności
+      ansible.builtin.debug:
+        msg:
+          - "{{ stona100_ddl_checksums.stdout_lines }}"
+          - "{{ stona100_fixture_checksums.stdout_lines }}"
+          - "{{ stona100_permission_checksums.stdout_lines }}"
+
+    - name: Sprawdź stan docelowego schematu
+      ansible.builtin.command:
+        argv: >-
+          {{
+            stona100_psql_args
+            + ['-A', '-t', '-q', '-c', stona100_schema_query]
+          }}
+      become_user: postgres
+      register: stona100_schema_before
+      changed_when: false
+
+    - name: Potwierdź pusty schemat
+      ansible.builtin.assert:
+        that:
+          - stona100_schema_before.stdout | trim == '0|0'
+        success_msg: "PASS: target schema is empty"
+
+    - name: Zapisz stan ACL przed testem
+      ansible.builtin.command:
+        argv: >-
+          {{
+            stona100_psql_args
+            + ['-A', '-t', '-q', '-c', stona100_acl_query]
+          }}
+      become_user: postgres
+      register: stona100_acl_before
+      changed_when: false
+
+    - name: Przygotuj i wykonaj testy uprawnień
+      block:
+
+        - name: Utwórz tymczasowy katalog
+          ansible.builtin.tempfile:
+            state: directory
+            prefix: stona100-permissions-
+          register: stona100_workdir
+
+        - name: Zabezpiecz katalog roboczy
+          ansible.builtin.file:
+            path: "{{ stona100_workdir.path }}"
+            state: directory
+            owner: postgres
+            group: postgres
+            mode: "0700"
+
+        - name: Skopiuj skrypty SQL
+          ansible.builtin.copy:
+            src: "{{ stona100_sql_dir }}/{{ item }}"
+            dest: "{{ stona100_workdir.path }}/{{ item }}"
+            owner: postgres
+            group: postgres
+            mode: "0600"
+          loop: "{{ stona100_test_files }}"
+
+        - name: Uruchom transakcyjne testy uprawnień
+          ansible.builtin.command:
+            argv: >-
+              {{
+                stona100_psql_args
+                + [
+                    '-f',
+                    stona100_workdir.path
+                    + '/test_migration_permissions.sql'
+                  ]
+              }}
+            chdir: "{{ stona100_workdir.path }}"
+          become_user: postgres
+          register: stona100_permission_result
+          changed_when: false
+          failed_when: false
+
+        - name: Przygotuj raport wyników
+          ansible.builtin.set_fact:
+            stona100_permission_report:
+
+              rc: "{{ stona100_permission_result.rc }}"
+
+              preflight_pass: >-
+                {{
+                  'PERMISSIONS PREFLIGHT: PASS'
+                  in stona100_permission_result.stderr
+                }}
+
+              fixtures_pass: >-
+                {{
+                  'TRIGGER FIXTURES: PASS'
+                  in stona100_permission_result.stderr
+                }}
+
+              configuration_pass: >-
+                {{
+                  'APPLICATION PERMISSIONS: CONFIGURED'
+                  in stona100_permission_result.stderr
+                }}
+
+              audit_count: >-
+                {{
+                  stona100_permission_result.stderr
+                  | regex_findall(
+                      'APPLICATION PERMISSION AUDIT: PASS'
+                    )
+                  | length
+                }}
+
+              permission_checks: >-
+                {{
+                  stona100_permission_result.stderr
+                  | regex_findall(
+                      'Permission checks: ([0-9]+)'
+                    )
+                }}
+
+              passed_tests: >-
+                {{
+                  stona100_permission_result.stderr
+                  | regex_findall(
+                      'PASS: ([ARMD][0-9]{2}) '
+                    )
+                  | unique
+                  | sort
+                  | list
+                }}
+
+              operations_pass: >-
+                {{
+                  'APPLICATION OPERATIONS: PASS (23/23)'
+                  in stona100_permission_result.stderr
+                }}
+
+              post_test_pass: >-
+                {{
+                  'PERMISSIONS POST-TEST VALIDATION: PASS'
+                  in stona100_permission_result.stderr
+                }}
+
+              rollback_pass: >-
+                {{
+                  'ROLLBACK'
+                  in stona100_permission_result.stdout_lines
+                }}
+
+              test_complete: >-
+                {{
+                  '=== PERMISSIONS TEST COMPLETED ==='
+                  in stona100_permission_result.stdout_lines
+                }}
+
+        - name: Pokaż komunikaty PostgreSQL
+          ansible.builtin.debug:
+            var: stona100_permission_result.stderr_lines
+
+        - name: Pokaż diagnostykę błędów
+          ansible.builtin.debug:
+            var: stona100_permission_result.stdout_lines
+          when: stona100_permission_report.rc | int != 0
+
+        - name: Pokaż podsumowanie
+          ansible.builtin.debug:
+            msg:
+              - "Return code: {{ stona100_permission_report.rc }}"
+              - "Preflight: {{ stona100_permission_report.preflight_pass }}"
+              - "Fixtures: {{ stona100_permission_report.fixtures_pass }}"
+              - "Permissions configured: {{ stona100_permission_report.configuration_pass }}"
+              - "ACL audits: {{ stona100_permission_report.audit_count }}/2"
+              - "Permission checks: {{ stona100_permission_report.permission_checks }}"
+              - "Operation tests: {{ stona100_permission_report.passed_tests | length }}/23"
+              - "Passed tests: {{ stona100_permission_report.passed_tests }}"
+              - "Post-test validation: {{ stona100_permission_report.post_test_pass }}"
+              - "Explicit rollback: {{ stona100_permission_report.rollback_pass }}"
+
+        - name: Zweryfikuj wszystkie wyniki
+          ansible.builtin.assert:
+            that:
+              - stona100_permission_report.rc | int == 0
+              - stona100_permission_report.preflight_pass | bool
+              - stona100_permission_report.fixtures_pass | bool
+              - stona100_permission_report.configuration_pass | bool
+              - stona100_permission_report.audit_count | int == 2
+              - stona100_permission_report.passed_tests == (stona100_expected_tests | sort)
+              - stona100_permission_report.operations_pass | bool
+              - stona100_permission_report.post_test_pass | bool
+              - stona100_permission_report.rollback_pass | bool
+              - stona100_permission_report.test_complete | bool
+            success_msg: "PASS: all application permission tests"
+            fail_msg: "Permission tests failed. Review PostgreSQL diagnostics."
+
+      always:
+
+        - name: Usuń tymczasowy katalog roboczy
+          ansible.builtin.file:
+            path: "{{ stona100_workdir.path }}"
+            state: absent
+          when:
+            - stona100_workdir is defined
+            - stona100_workdir.path is defined
+
+        - name: Sprawdź schemat po zakończeniu testu
+          ansible.builtin.command:
+            argv: >-
+              {{
+                stona100_psql_args
+                + ['-A', '-t', '-q', '-c', stona100_schema_query]
+              }}
+          become_user: postgres
+          register: stona100_schema_after
+          changed_when: false
+
+        - name: Sprawdź stan ACL po zakończeniu testu
+          ansible.builtin.command:
+            argv: >-
+              {{
+                stona100_psql_args
+                + ['-A', '-t', '-q', '-c', stona100_acl_query]
+              }}
+          become_user: postgres
+          register: stona100_acl_after
+          changed_when: false
+
+        - name: Potwierdź pełne wycofanie zmian
+          ansible.builtin.assert:
+            that:
+              - stona100_schema_after.stdout | trim == '0|0'
+              - stona100_schema_after.stdout == stona100_schema_before.stdout
+              - stona100_acl_after.stdout == stona100_acl_before.stdout
+            success_msg: "PASS: schema and ACL unchanged after ROLLBACK"
+            fail_msg: "Unexpected changes remain after permission tests"
