@@ -1,0 +1,254 @@
+---
+- name: Test poziomów izolacji transakcji StoNa100 v0.8
+  hosts: localhost
+  gather_facts: false
+  become: false
+
+  vars:
+    stona100_project_dir: "{{ lookup('env', 'HOME') }}/projects/stona100_v02"
+    stona100_sql_dir: "{{ stona100_project_dir }}/postgresql"
+
+    stona100_test_db_host: "192.168.64.20"
+    stona100_test_db_port: "5432"
+    stona100_test_db_name: stona100
+    stona100_test_db_user: stona100_migrator
+
+    stona100_fixtures_sha256: "39af6ea97b5bcebed58f009903725b36e7c3b42781ba2511dca66fd22fb5c183"
+
+    stona100_schema_query: >-
+      SELECT
+        (
+          SELECT COUNT(*)
+          FROM pg_class c
+          JOIN pg_namespace n
+            ON n.oid = c.relnamespace
+          WHERE n.nspname = 'stona100'
+        ),
+        (
+          SELECT COUNT(*)
+          FROM pg_proc p
+          JOIN pg_namespace n
+            ON n.oid = p.pronamespace
+          WHERE n.nspname = 'stona100'
+        );
+
+    stona100_psql_args:
+      - psql
+      - -X
+      - -w
+      - -v
+      - ON_ERROR_STOP=1
+      - -h
+      - "{{ stona100_test_db_host }}"
+      - -p
+      - "{{ stona100_test_db_port }}"
+      - -U
+      - "{{ stona100_test_db_user }}"
+      - -d
+      - "{{ stona100_test_db_name }}"
+
+  environment:
+    PGSSLMODE: require
+    PGGSSENCMODE: disable
+    PGCONNECT_TIMEOUT: "5"
+    PGPASSFILE: /dev/null
+    LC_ALL: C
+
+  tasks:
+
+    - name: Sprawdź dostępność klienta PostgreSQL
+      ansible.builtin.command:
+        argv:
+          - psql
+          - --version
+      changed_when: false
+
+    - name: Zweryfikuj sumy kontrolne DDL
+      ansible.builtin.command:
+        argv:
+          - shasum
+          - -a
+          - "256"
+          - -c
+          - SHA256SUMS
+        chdir: "{{ stona100_sql_dir }}"
+      register: stona100_ddl_checksums
+      changed_when: false
+
+    - name: Pokaż wyniki kontroli DDL
+      ansible.builtin.debug:
+        var: stona100_ddl_checksums.stdout_lines
+
+    - name: Oblicz sumę kontrolną danych syntetycznych
+      ansible.builtin.stat:
+        path: "{{ stona100_sql_dir }}/007_trigger_fixtures.sql"
+        checksum_algorithm: sha256
+        get_checksum: true
+      register: stona100_fixtures_file
+
+    - name: Zweryfikuj dane syntetyczne
+      ansible.builtin.assert:
+        that:
+          - stona100_fixtures_file.stat.exists
+          - stona100_fixtures_file.stat.isreg | default(false)
+          - stona100_fixtures_file.stat.checksum | default('') == stona100_fixtures_sha256
+        success_msg: "PASS: synthetic fixtures verified"
+
+    - name: Sprawdź skrypt testów izolacji
+      ansible.builtin.stat:
+        path: "{{ stona100_sql_dir }}/009_test_transaction_isolation.sql"
+        checksum_algorithm: sha256
+        get_checksum: true
+      register: stona100_isolation_file
+
+    - name: Potwierdź dostępność skryptu
+      ansible.builtin.assert:
+        that:
+          - stona100_isolation_file.stat.exists
+          - stona100_isolation_file.stat.isreg | default(false)
+          - stona100_isolation_file.stat.size | default(0) | int > 0
+        success_msg: "PASS: transaction isolation SQL exists"
+
+    - name: Pokaż sumę kontrolną skryptu
+      ansible.builtin.debug:
+        msg: >-
+          Isolation SQL SHA-256:
+          {{ stona100_isolation_file.stat.checksum }}
+
+    - name: Sprawdź stan schematu przed testem
+      ansible.builtin.command:
+        argv: >-
+          {{
+            stona100_psql_args
+            + ['-A', '-t', '-q', '-c', stona100_schema_query]
+          }}
+      environment:
+        PGPASSWORD: "{{ vault_stona100_db_migrator_password }}"
+      register: stona100_schema_before
+      changed_when: false
+      no_log: true
+
+    - name: Potwierdź pusty schemat
+      ansible.builtin.assert:
+        that:
+          - stona100_schema_before.stdout | trim == '0|0'
+        success_msg: "PASS: target schema is empty"
+        fail_msg: "Target schema is not empty. Test aborted."
+
+    - name: Wykonaj testy izolacji transakcji
+      block:
+
+        - name: Uruchom trzy testy poziomów izolacji
+          ansible.builtin.command:
+            argv: >-
+              {{
+                stona100_psql_args
+                + [
+                    '-f',
+                    stona100_sql_dir
+                    + '/009_test_transaction_isolation.sql'
+                  ]
+              }}
+            chdir: "{{ stona100_sql_dir }}"
+          environment:
+            PGPASSWORD: "{{ vault_stona100_db_migrator_password }}"
+          register: stona100_isolation_result
+          changed_when: false
+          failed_when: false
+          no_log: true
+
+        - name: Przygotuj bezpieczny raport
+          ansible.builtin.set_fact:
+            stona100_isolation_report:
+
+              rc: "{{ stona100_isolation_result.rc }}"
+
+              stderr: >-
+                {{
+                  stona100_isolation_result.stderr
+                  | replace(
+                      vault_stona100_db_migrator_password,
+                      '[REDACTED]'
+                    )
+                }}
+
+              read_committed_pass: >-
+                {{
+                  'PASS: T15A READ COMMITTED rejected [25000]'
+                  in stona100_isolation_result.stderr
+                }}
+
+              repeatable_read_pass: >-
+                {{
+                  'PASS: T15B REPEATABLE READ rejected [25000]'
+                  in stona100_isolation_result.stderr
+                }}
+
+              serializable_pass: >-
+                {{
+                  'PASS: T15C SERIALIZABLE accepted'
+                  in stona100_isolation_result.stderr
+                }}
+
+              rollback_count: >-
+                {{
+                  stona100_isolation_result.stdout_lines
+                  | select('equalto', 'ROLLBACK')
+                  | list
+                  | length
+                }}
+
+              test_complete: >-
+                {{
+                  '=== TRANSACTION ISOLATION VALIDATION: PASS (3/3) ==='
+                  in stona100_isolation_result.stdout_lines
+                }}
+          no_log: true
+
+        - name: Pokaż podsumowanie testów izolacji
+          ansible.builtin.debug:
+            msg:
+              - "Return code: {{ stona100_isolation_report.rc }}"
+              - "T15A READ COMMITTED rejected: {{ stona100_isolation_report.read_committed_pass }}"
+              - "T15B REPEATABLE READ rejected: {{ stona100_isolation_report.repeatable_read_pass }}"
+              - "T15C SERIALIZABLE accepted: {{ stona100_isolation_report.serializable_pass }}"
+              - "Explicit rollbacks: {{ stona100_isolation_report.rollback_count }}/3"
+              - "Test completed: {{ stona100_isolation_report.test_complete }}"
+
+        - name: Pokaż komunikaty PostgreSQL
+          ansible.builtin.debug:
+            msg: "{{ stona100_isolation_report.stderr.splitlines() }}"
+
+        - name: Zweryfikuj wszystkie testy izolacji
+          ansible.builtin.assert:
+            that:
+              - stona100_isolation_report.rc | int == 0
+              - stona100_isolation_report.read_committed_pass | bool
+              - stona100_isolation_report.repeatable_read_pass | bool
+              - stona100_isolation_report.serializable_pass | bool
+              - stona100_isolation_report.rollback_count | int == 3
+              - stona100_isolation_report.test_complete | bool
+            success_msg: "PASS: all three transaction isolation tests"
+            fail_msg: "Transaction isolation validation failed"
+
+      always:
+
+        - name: Sprawdź stan schematu po testach
+          ansible.builtin.command:
+            argv: >-
+              {{
+                stona100_psql_args
+                + ['-A', '-t', '-q', '-c', stona100_schema_query]
+              }}
+          environment:
+            PGPASSWORD: "{{ vault_stona100_db_migrator_password }}"
+          register: stona100_schema_after
+          changed_when: false
+          no_log: true
+
+        - name: Potwierdź pusty schemat po testach
+          ansible.builtin.assert:
+            that:
+              - stona100_schema_after.stdout | trim == '0|0'
+            success_msg: "PASS: schema remains empty after all isolation tests"
+            fail_msg: "Unexpected objects remain in target schema"

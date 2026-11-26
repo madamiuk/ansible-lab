@@ -1,0 +1,294 @@
+---
+- name: Testy współbieżności PostgreSQL StoNa100 v0.8
+  hosts: database01
+  gather_facts: false
+  become: true
+
+  vars:
+    stona100_project_dir: "{{ lookup('env', 'HOME') }}/projects/stona100_v02"
+    stona100_sql_dir: "{{ stona100_project_dir }}/postgresql"
+    stona100_tools_dir: "{{ stona100_project_dir }}/tools"
+
+    stona100_concurrency_sql_files:
+      - 001_tables_indexes.sql
+      - 002_views.sql
+      - 003_functions.sql
+      - 004_triggers.sql
+      - 007_trigger_fixtures.sql
+
+    stona100_target_schema_query: >-
+      SELECT
+        (
+          SELECT COUNT(*)
+          FROM pg_class c
+          JOIN pg_namespace n
+            ON n.oid = c.relnamespace
+          WHERE n.nspname = 'stona100'
+        ),
+        (
+          SELECT COUNT(*)
+          FROM pg_proc p
+          JOIN pg_namespace n
+            ON n.oid = p.pronamespace
+          WHERE n.nspname = 'stona100'
+        );
+
+    stona100_existing_test_databases_query: >-
+      SELECT datname
+      FROM pg_database
+      WHERE datname ~ '^stona100_concurrency_[0-9a-f]{32}$'
+      ORDER BY datname;
+
+    stona100_psql_local_args:
+      - /usr/bin/psql
+      - -X
+      - -w
+      - -A
+      - -t
+      - -q
+      - -v
+      - ON_ERROR_STOP=1
+      - -h
+      - /var/run/postgresql
+      - -p
+      - "5432"
+      - -U
+      - postgres
+
+  tasks:
+
+    - name: Potwierdź właściwy serwer i tryb wykonania
+      ansible.builtin.assert:
+        that:
+          - inventory_hostname == 'database01'
+          - not ansible_check_mode
+        success_msg: "PASS: target database01 confirmed"
+        fail_msg: "Invalid target or check mode"
+
+    - name: Sprawdź dostępność psycopg2
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/python3
+          - -c
+          - "import psycopg2; print(psycopg2.__version__)"
+      register: stona100_psycopg_version
+      changed_when: false
+
+    - name: Pokaż wersję psycopg2
+      ansible.builtin.debug:
+        var: stona100_psycopg_version.stdout
+
+    - name: Zweryfikuj integralność DDL na kontrolerze
+      ansible.builtin.command:
+        argv:
+          - shasum
+          - -a
+          - "256"
+          - -c
+          - SHA256SUMS
+        chdir: "{{ stona100_sql_dir }}"
+      delegate_to: localhost
+      become: false
+      register: stona100_ddl_checksums
+      changed_when: false
+
+    - name: Zweryfikuj integralność testów na kontrolerze
+      ansible.builtin.command:
+        argv:
+          - shasum
+          - -a
+          - "256"
+          - -c
+          - postgresql/SHA256SUMS.tests
+        chdir: "{{ stona100_project_dir }}"
+      delegate_to: localhost
+      become: false
+      register: stona100_test_checksums
+      changed_when: false
+
+    - name: Pokaż wyniki kontroli sum
+      ansible.builtin.debug:
+        msg:
+          - "{{ stona100_ddl_checksums.stdout_lines }}"
+          - "{{ stona100_test_checksums.stdout_lines }}"
+
+    - name: Sprawdź stan docelowego schematu przed testem
+      ansible.builtin.command:
+        argv: >-
+          {{
+            stona100_psql_local_args
+            + [
+                '-d', 'stona100',
+                '-c', stona100_target_schema_query
+              ]
+          }}
+      become_user: postgres
+      register: stona100_target_before
+      changed_when: false
+
+    - name: Potwierdź pusty schemat docelowy
+      ansible.builtin.assert:
+        that:
+          - stona100_target_before.stdout | trim == '0|0'
+        success_msg: "PASS: target schema is empty"
+        fail_msg: "Target schema is not empty. Test aborted."
+
+    - name: Sprawdź istniejące bazy testowe
+      ansible.builtin.command:
+        argv: >-
+          {{
+            stona100_psql_local_args
+            + [
+                '-d', 'postgres',
+                '-c', stona100_existing_test_databases_query
+              ]
+          }}
+      become_user: postgres
+      register: stona100_test_databases_before
+      changed_when: false
+
+    - name: Potwierdź brak pozostałości wcześniejszych testów
+      ansible.builtin.assert:
+        that:
+          - stona100_test_databases_before.stdout | trim == ''
+        success_msg: "PASS: no previous concurrency databases"
+        fail_msg: "Previous test database exists. Manual inspection required."
+
+    - name: Przygotuj i wykonaj testy współbieżności
+      block:
+
+        - name: Utwórz tymczasowy katalog roboczy
+          ansible.builtin.tempfile:
+            state: directory
+            prefix: stona100-concurrency-
+          register: stona100_workdir
+
+        - name: Ustaw właściciela i uprawnienia katalogu
+          ansible.builtin.file:
+            path: "{{ stona100_workdir.path }}"
+            state: directory
+            owner: postgres
+            group: postgres
+            mode: "0700"
+
+        - name: Skopiuj wymagane skrypty SQL
+          ansible.builtin.copy:
+            src: "{{ stona100_sql_dir }}/{{ item }}"
+            dest: "{{ stona100_workdir.path }}/{{ item }}"
+            owner: postgres
+            group: postgres
+            mode: "0600"
+          loop: "{{ stona100_concurrency_sql_files }}"
+
+        - name: Skopiuj program testujący współbieżność
+          ansible.builtin.copy:
+            src: "{{ stona100_tools_dir }}/test_postgresql_concurrency.py"
+            dest: "{{ stona100_workdir.path }}/test_postgresql_concurrency.py"
+            owner: postgres
+            group: postgres
+            mode: "0600"
+
+        - name: Zweryfikuj składnię programu Python na serwerze
+          ansible.builtin.command:
+            argv:
+              - /usr/bin/python3
+              - -m
+              - py_compile
+              - "{{ stona100_workdir.path }}/test_postgresql_concurrency.py"
+          become_user: postgres
+          changed_when: false
+
+        - name: Uruchom testy współbieżności
+          ansible.builtin.command:
+            argv:
+              - /usr/bin/python3
+              - -u
+              - "{{ stona100_workdir.path }}/test_postgresql_concurrency.py"
+            chdir: "{{ stona100_workdir.path }}"
+          become_user: postgres
+          environment:
+            PYTHONUNBUFFERED: "1"
+          register: stona100_concurrency_result
+          failed_when: false
+          changed_when: true
+
+        - name: Pokaż wyniki testów współbieżności
+          ansible.builtin.debug:
+            var: stona100_concurrency_result.stdout_lines
+
+        - name: Pokaż błędy wykonania programu
+          ansible.builtin.debug:
+            var: stona100_concurrency_result.stderr_lines
+          when: stona100_concurrency_result.rc | int != 0
+
+        - name: Zweryfikuj wszystkie przypadki testowe
+          ansible.builtin.assert:
+            that:
+              - stona100_concurrency_result.rc | int == 0
+              - "'PASS: isolated test database initialized' in stona100_concurrency_result.stdout_lines"
+              - "'PASS: C01' in stona100_concurrency_result.stdout_lines"
+              - "'PASS: C02' in stona100_concurrency_result.stdout_lines"
+              - "'PASS: C03' in stona100_concurrency_result.stdout_lines"
+              - "'CONCURRENCY VALIDATION: PASS (3/3)' in stona100_concurrency_result.stdout_lines"
+              - "'PASS: temporary database removed' in stona100_concurrency_result.stdout_lines"
+            success_msg: "PASS: all concurrency tests"
+            fail_msg: "Concurrency validation failed"
+
+      always:
+
+        - name: Usuń tymczasowy katalog roboczy
+          ansible.builtin.file:
+            path: "{{ stona100_workdir.path }}"
+            state: absent
+          when:
+            - stona100_workdir is defined
+            - stona100_workdir.path is defined
+
+        - name: Sprawdź pozostałości tymczasowych baz
+          ansible.builtin.command:
+            argv: >-
+              {{
+                stona100_psql_local_args
+                + [
+                    '-d', 'postgres',
+                    '-c', stona100_existing_test_databases_query
+                  ]
+              }}
+          become_user: postgres
+          register: stona100_test_databases_after
+          changed_when: false
+
+        - name: Sprawdź docelowy schemat po testach
+          ansible.builtin.command:
+            argv: >-
+              {{
+                stona100_psql_local_args
+                + [
+                    '-d', 'stona100',
+                    '-c', stona100_target_schema_query
+                  ]
+              }}
+          become_user: postgres
+          register: stona100_target_after
+          changed_when: false
+
+        - name: Pokaż stan środowiska po testach
+          ansible.builtin.debug:
+            msg:
+              - "Remaining test databases: {{ stona100_test_databases_after.stdout_lines }}"
+              - "Target schema objects: {{ stona100_target_after.stdout }}"
+
+        - name: Potwierdź usunięcie baz testowych
+          ansible.builtin.assert:
+            that:
+              - stona100_test_databases_after.stdout | trim == ''
+            success_msg: "PASS: no temporary databases remain"
+            fail_msg: "Temporary database remains. Manual inspection required."
+
+        - name: Potwierdź brak zmian w docelowym schemacie
+          ansible.builtin.assert:
+            that:
+              - stona100_target_after.stdout | trim == '0|0'
+              - stona100_target_after.stdout == stona100_target_before.stdout
+            success_msg: "PASS: target schema remains unchanged"
+            fail_msg: "Unexpected changes in target schema"
