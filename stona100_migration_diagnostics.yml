@@ -1,0 +1,323 @@
+---
+- name: Diagnostyka różnic numerycznych StoNa100 v0.8
+  hosts: localhost
+  gather_facts: false
+  become: false
+
+  vars:
+    stona100_project_dir: "{{ lookup('env', 'HOME') }}/projects/stona100_v02"
+    stona100_sql_dir: "{{ stona100_project_dir }}/postgresql"
+    stona100_export_dir: "{{ stona100_project_dir }}/exports/postgresql-v080"
+
+    stona100_test_db_host: "192.168.64.20"
+    stona100_test_db_port: "5432"
+    stona100_test_db_name: stona100
+    stona100_test_db_user: stona100_migrator
+
+    stona100_post_rollback_query: >-
+      SELECT
+        (
+          SELECT COUNT(*)
+          FROM pg_class c
+          JOIN pg_namespace n
+            ON n.oid = c.relnamespace
+          WHERE n.nspname = 'stona100'
+        ),
+        (
+          SELECT COUNT(*)
+          FROM pg_proc p
+          JOIN pg_namespace n
+            ON n.oid = p.pronamespace
+          WHERE n.nspname = 'stona100'
+        );
+
+  environment:
+    PGSSLMODE: require
+    PGGSSENCMODE: disable
+    PGCONNECT_TIMEOUT: "5"
+    PGPASSFILE: /dev/null
+    LC_ALL: C
+
+  tasks:
+
+    - name: Sprawdź dostępność klienta PostgreSQL
+      ansible.builtin.command:
+        argv:
+          - psql
+          - --version
+      register: stona100_psql_version
+      changed_when: false
+
+    - name: Pokaż wersję klienta PostgreSQL
+      ansible.builtin.debug:
+        var: stona100_psql_version.stdout
+
+    - name: Zweryfikuj sumy kontrolne skryptów DDL
+      ansible.builtin.command:
+        argv:
+          - shasum
+          - -a
+          - "256"
+          - -c
+          - SHA256SUMS
+        chdir: "{{ stona100_sql_dir }}"
+      register: stona100_ddl_checksums
+      changed_when: false
+
+    - name: Pokaż wyniki kontroli sum DDL
+      ansible.builtin.debug:
+        var: stona100_ddl_checksums.stdout_lines
+
+    - name: Zweryfikuj sumy kontrolne eksportu danych
+      ansible.builtin.command:
+        argv:
+          - shasum
+          - -a
+          - "256"
+          - -c
+          - SHA256SUMS
+        chdir: "{{ stona100_export_dir }}"
+      register: stona100_export_checksums
+      changed_when: false
+
+    - name: Potwierdź kompletność manifestu eksportu
+      ansible.builtin.assert:
+        that:
+          - stona100_export_checksums.stdout_lines | length == 47
+        success_msg: "PASS: all 47 export checksums verified"
+
+    - name: Sprawdź dostępność skryptów diagnostycznych
+      ansible.builtin.stat:
+        path: "{{ item }}"
+        checksum_algorithm: sha256
+        get_checksum: true
+      loop:
+        - "{{ stona100_sql_dir }}/006_validate_data.sql"
+        - "{{ stona100_sql_dir }}/test_migration_diagnostics.sql"
+        - "{{ stona100_export_dir }}/diagnose_normalized_view.sql"
+      register: stona100_diagnostic_files
+
+    - name: Potwierdź dostępność wymaganych plików
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.isreg
+          - item.stat.size | int > 0
+        success_msg: "PASS: {{ item.item }}"
+        fail_msg: "Missing or invalid file: {{ item.item }}"
+      loop: "{{ stona100_diagnostic_files.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Sprawdź uprawnienia prywatnego skryptu diagnostycznego
+      ansible.builtin.assert:
+        that:
+          - stona100_diagnostic_files.results[2].stat.mode == '0600'
+        success_msg: "PASS: diagnostic SQL permissions are 0600"
+        fail_msg: "Diagnostic SQL contains private data and must have mode 0600"
+
+    - name: Pokaż sumę kontrolną skryptu diagnostycznego
+      ansible.builtin.debug:
+        msg: >-
+          Diagnostic SQL SHA-256:
+          {{ stona100_diagnostic_files.results[2].stat.checksum }}
+
+    - name: Sprawdź stan schematu przed testem
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -X
+          - -w
+          - -A
+          - -t
+          - -q
+          - -v
+          - ON_ERROR_STOP=1
+          - -h
+          - "{{ stona100_test_db_host }}"
+          - -p
+          - "{{ stona100_test_db_port }}"
+          - -U
+          - "{{ stona100_test_db_user }}"
+          - -d
+          - "{{ stona100_test_db_name }}"
+          - -c
+          - "{{ stona100_post_rollback_query }}"
+      environment:
+        PGPASSWORD: "{{ vault_stona100_db_migrator_password }}"
+      register: stona100_schema_before
+      changed_when: false
+      no_log: true
+
+    - name: Potwierdź pusty schemat przed testem
+      ansible.builtin.assert:
+        that:
+          - stona100_schema_before.stdout | trim == '0|0'
+        success_msg: "PASS: target schema is empty"
+        fail_msg: "Target schema is not empty. Diagnostic test aborted."
+
+    - name: Wykonaj transakcyjny test diagnostyczny
+      block:
+
+        - name: Uruchom import danych i diagnostykę numeryczną
+          ansible.builtin.command:
+            argv:
+              - psql
+              - -X
+              - -w
+              - -v
+              - ON_ERROR_STOP=1
+              - -h
+              - "{{ stona100_test_db_host }}"
+              - -p
+              - "{{ stona100_test_db_port }}"
+              - -U
+              - "{{ stona100_test_db_user }}"
+              - -d
+              - "{{ stona100_test_db_name }}"
+              - -f
+              - "{{ stona100_sql_dir }}/test_migration_diagnostics.sql"
+            chdir: "{{ stona100_export_dir }}"
+          environment:
+            PGPASSWORD: "{{ vault_stona100_db_migrator_password }}"
+          register: stona100_diagnostic_result
+          changed_when: false
+          failed_when: false
+          no_log: true
+
+        - name: Przygotuj bezpieczne podsumowanie testu
+          ansible.builtin.set_fact:
+            stona100_diagnostic_report:
+              rc: "{{ stona100_diagnostic_result.rc }}"
+
+              ddl_pass: >-
+                {{
+                  'DDL object validation: PASS'
+                  in stona100_diagnostic_result.stderr
+                }}
+
+              count_pass: >-
+                {{
+                  'DATA COUNT VALIDATION: PASS (59/59)'
+                  in stona100_diagnostic_result.stderr
+                }}
+
+              history_pass: >-
+                {{
+                  'Migration history is empty: PASS'
+                  in stona100_diagnostic_result.stderr
+                }}
+
+              diagnostics_complete: >-
+                {{
+                  '=== NUMERIC DIAGNOSTICS COMPLETED ==='
+                  in stona100_diagnostic_result.stdout_lines
+                }}
+
+              rollback_pass: >-
+                {{
+                  'ROLLBACK'
+                  in stona100_diagnostic_result.stdout_lines
+                }}
+
+              test_complete: >-
+                {{
+                  '=== DDL TEST COMPLETED ==='
+                  in stona100_diagnostic_result.stdout_lines
+                }}
+
+              error_locations: >-
+                {{
+                  stona100_diagnostic_result.stderr
+                  | regex_findall(
+                      '[a-zA-Z0-9_-]+[.]sql:[0-9]+:'
+                    )
+                }}
+
+              diagnostic_output: >-
+                {{
+                  stona100_diagnostic_result.stdout.split(
+                    '=== COLUMN DIFFERENCE COUNTS ==='
+                  )[1].split(
+                    '=== NUMERIC DIAGNOSTICS COMPLETED ==='
+                  )[0]
+                  if stona100_diagnostic_result.rc == 0
+                  and '=== COLUMN DIFFERENCE COUNTS ==='
+                      in stona100_diagnostic_result.stdout
+                  and '=== NUMERIC DIAGNOSTICS COMPLETED ==='
+                      in stona100_diagnostic_result.stdout
+                  else 'Diagnostic execution failed'
+                }}
+          no_log: true
+
+        - name: Pokaż podsumowanie wykonania
+          ansible.builtin.debug:
+            msg:
+              - "Return code: {{ stona100_diagnostic_report.rc }}"
+              - "DDL validation: {{ stona100_diagnostic_report.ddl_pass }}"
+              - "Count validation: {{ stona100_diagnostic_report.count_pass }}"
+              - "Diagnostics completed: {{ stona100_diagnostic_report.diagnostics_complete }}"
+              - "Migration history empty: {{ stona100_diagnostic_report.history_pass }}"
+              - "Explicit rollback: {{ stona100_diagnostic_report.rollback_pass }}"
+              - "Test completed: {{ stona100_diagnostic_report.test_complete }}"
+
+        - name: Pokaż bezpieczny raport diagnostyczny
+          ansible.builtin.debug:
+            msg: "{{ stona100_diagnostic_report.diagnostic_output.splitlines() }}"
+          when: stona100_diagnostic_report.rc | int == 0
+
+        - name: Pokaż lokalizację ewentualnego błędu SQL
+          ansible.builtin.debug:
+            msg:
+              - "Diagnostic SQL execution failed"
+              - "Last SQL location: {{ stona100_diagnostic_report.error_locations | last | default('unknown') }}"
+          when: stona100_diagnostic_report.rc | int != 0
+
+        - name: Zweryfikuj wykonanie testu diagnostycznego
+          ansible.builtin.assert:
+            that:
+              - stona100_diagnostic_report.rc | int == 0
+              - stona100_diagnostic_report.ddl_pass | bool
+              - stona100_diagnostic_report.count_pass | bool
+              - stona100_diagnostic_report.history_pass | bool
+              - stona100_diagnostic_report.diagnostics_complete | bool
+              - stona100_diagnostic_report.rollback_pass | bool
+              - stona100_diagnostic_report.test_complete | bool
+            success_msg: "PASS: transactional numerical diagnostics"
+            fail_msg: "Diagnostic test failed. Local investigation required."
+
+      always:
+
+        - name: Sprawdź stan schematu po zakończeniu testu
+          ansible.builtin.command:
+            argv:
+              - psql
+              - -X
+              - -w
+              - -A
+              - -t
+              - -q
+              - -v
+              - ON_ERROR_STOP=1
+              - -h
+              - "{{ stona100_test_db_host }}"
+              - -p
+              - "{{ stona100_test_db_port }}"
+              - -U
+              - "{{ stona100_test_db_user }}"
+              - -d
+              - "{{ stona100_test_db_name }}"
+              - -c
+              - "{{ stona100_post_rollback_query }}"
+          environment:
+            PGPASSWORD: "{{ vault_stona100_db_migrator_password }}"
+          register: stona100_schema_after
+          changed_when: false
+          no_log: true
+
+        - name: Potwierdź brak obiektów po teście
+          ansible.builtin.assert:
+            that:
+              - stona100_schema_after.stdout | trim == '0|0'
+            success_msg: "PASS: schema remains empty after ROLLBACK"
+            fail_msg: "Unexpected objects remain in the target schema."

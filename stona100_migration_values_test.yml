@@ -1,0 +1,266 @@
+---
+- name: Transakcyjny test zgodności wartości StoNa100 v0.8
+  hosts: localhost
+  gather_facts: false
+  become: false
+
+  vars:
+    stona100_project_dir: "{{ lookup('env', 'HOME') }}/projects/stona100_v02"
+    stona100_sql_dir: "{{ stona100_project_dir }}/postgresql"
+    stona100_test_db_host: "192.168.64.20"
+    stona100_test_db_port: "5432"
+    stona100_test_db_name: stona100
+    stona100_test_db_user: stona100_migrator
+    stona100_export_dir: "{{ stona100_project_dir }}/exports/postgresql-v080"
+    stona100_values_sha256: "aa12e886f142fdd3f5dc81d726be101a5e4da92b55abd267a17132495e40382a"
+
+    stona100_post_rollback_query: >-
+      SELECT
+        (
+          SELECT COUNT(*)
+          FROM pg_class c
+          JOIN pg_namespace n
+            ON n.oid = c.relnamespace
+          WHERE n.nspname = 'stona100'
+        ),
+        (
+          SELECT COUNT(*)
+          FROM pg_proc p
+          JOIN pg_namespace n
+            ON n.oid = p.pronamespace
+          WHERE n.nspname = 'stona100'
+        );
+
+  environment:
+    PGSSLMODE: require
+    PGGSSENCMODE: disable
+    PGCONNECT_TIMEOUT: "5"
+    PGPASSFILE: /dev/null
+    LC_ALL: C
+
+  tasks:
+    - name: Sprawdź dostępność klienta PostgreSQL
+      ansible.builtin.command:
+        argv:
+          - psql
+          - --version
+      changed_when: false
+
+    - name: Zweryfikuj sumy kontrolne skryptów DDL
+      ansible.builtin.command:
+        argv:
+          - shasum
+          - -a
+          - "256"
+          - -c
+          - SHA256SUMS
+        chdir: "{{ stona100_sql_dir }}"
+      register: stona100_ddl_checksums
+      changed_when: false
+
+    - name: Zweryfikuj sumy kontrolne eksportu danych
+      ansible.builtin.command:
+        argv:
+          - shasum
+          - -a
+          - "256"
+          - -c
+          - SHA256SUMS
+        chdir: "{{ stona100_export_dir }}"
+      register: stona100_export_checksums
+      changed_when: false
+
+    - name: Potwierdź kompletność manifestu eksportu
+      ansible.builtin.assert:
+        that:
+          - stona100_export_checksums.stdout_lines | length == 47
+        success_msg: "PASS: all 47 export checksums verified"
+
+    - name: Oblicz SHA-256 skryptu walidacji wartości
+      ansible.builtin.stat:
+        path: "{{ stona100_export_dir }}/validate_values.sql"
+        checksum_algorithm: sha256
+        get_checksum: true
+      register: stona100_values_file
+
+    - name: Zweryfikuj integralność skryptu walidacyjnego
+      ansible.builtin.assert:
+        that:
+          - stona100_values_file.stat.exists
+          - stona100_values_file.stat.isreg
+          - stona100_values_file.stat.mode == '0600'
+          - stona100_values_file.stat.checksum == stona100_values_sha256
+        success_msg: "PASS: value validation artifact verified"
+
+    - name: Pokaż wyniki kontroli sum
+      ansible.builtin.debug:
+        var: stona100_ddl_checksums.stdout_lines
+
+    - name: Sprawdź stan schematu przed testem
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -X
+          - -w
+          - -A
+          - -t
+          - -q
+          - -v
+          - ON_ERROR_STOP=1
+          - -h
+          - "{{ stona100_test_db_host }}"
+          - -p
+          - "{{ stona100_test_db_port }}"
+          - -U
+          - "{{ stona100_test_db_user }}"
+          - -d
+          - "{{ stona100_test_db_name }}"
+          - -c
+          - "{{ stona100_post_rollback_query }}"
+      environment:
+        PGPASSWORD: "{{ vault_stona100_db_migrator_password }}"
+      register: stona100_schema_before
+      changed_when: false
+      no_log: true
+
+    - name: Potwierdź pusty schemat przed testem
+      ansible.builtin.assert:
+        that:
+          - stona100_schema_before.stdout | trim == '0|0'
+        success_msg: "PASS: target schema is empty"
+        fail_msg: "Target schema is not empty. DDL test aborted."
+
+    - name: Wykonaj test DDL w pojedynczej transakcji
+      block:
+        - name: Uruchom skrypty DDL i wykonaj ROLLBACK
+          ansible.builtin.command:
+            argv:
+              - psql
+              - -X
+              - -w
+              - -v
+              - ON_ERROR_STOP=1
+              - -h
+              - "{{ stona100_test_db_host }}"
+              - -p
+              - "{{ stona100_test_db_port }}"
+              - -U
+              - "{{ stona100_test_db_user }}"
+              - -d
+              - "{{ stona100_test_db_name }}"
+              - -f
+              - "{{ stona100_sql_dir }}/test_migration_values.sql"
+            chdir: "{{ stona100_export_dir }}"
+          environment:
+            PGPASSWORD: "{{ vault_stona100_db_migrator_password }}"
+          register: stona100_ddl_result
+          changed_when: false
+          failed_when: false
+          no_log: true
+
+        - name: Przygotuj bezpieczny raport wykonania
+          ansible.builtin.set_fact:
+            stona100_ddl_report:
+              rc: "{{ stona100_ddl_result.rc }}"
+              stdout: "{{ stona100_ddl_result.stdout | replace(vault_stona100_db_migrator_password, '[REDACTED]') }}"
+              stderr: "{{ stona100_ddl_result.stderr | replace(vault_stona100_db_migrator_password, '[REDACTED]') }}"
+          no_log: true
+
+        - name: Pokaż bezpieczne podsumowanie testu
+          ansible.builtin.debug:
+            msg:
+              - "Return code: {{ stona100_ddl_report.rc }}"
+              - "DDL validation: {{ 'DDL object validation: PASS' in stona100_ddl_report.stderr }}"
+              - "Count validation: {{ 'DATA COUNT VALIDATION: PASS (59/59)' in stona100_ddl_report.stderr }}"
+              - "Value validation: {{ 'DATA VALUE VALIDATION: PASS (59/59)' in stona100_ddl_report.stderr }}"
+              - "Rollback: {{ 'ROLLBACK' in stona100_ddl_report.stdout.splitlines() }}"
+
+        - name: Przygotuj bezpieczną diagnostykę porównania
+          ansible.builtin.set_fact:
+            stona100_value_diagnostics:
+              completed_objects: >-
+                {{
+                  stona100_ddl_report.stderr
+                  | regex_findall('PASS: ([a-z_]+) values')
+                }}
+              differences: >-
+                {{
+                  stona100_ddl_report.stderr
+                  | regex_findall('([a-z_]+: [0-9]+ value differences)')
+                }}
+              error_locations: >-
+                {{
+                  stona100_ddl_report.stderr
+                  | regex_findall('validate_values[.]sql:[0-9]+:')
+                }}
+              started_objects: >-
+                {{
+                  stona100_ddl_report.stdout
+                  | regex_findall('(?m)^Comparing ([a-z_]+)$')
+                }}
+          no_log: true
+
+        - name: Pokaż bezpieczną diagnostykę
+          ansible.builtin.debug:
+            msg:
+              - "Completed: {{ stona100_value_diagnostics.completed_objects | length }}/59"
+              - "Passed objects: {{ stona100_value_diagnostics.completed_objects }}"
+              - "Last attempted object: {{ stona100_value_diagnostics.started_objects | last | default('unknown') }}"
+              - "Differences: {{ stona100_value_diagnostics.differences }}"
+              - "Last SQL location: {{ stona100_value_diagnostics.error_locations | last | default('unknown') }}"
+          when: stona100_ddl_report.rc | int != 0
+
+        - name: Pokaż liczbę zaliczonych porównań
+          ansible.builtin.debug:
+            msg: >-
+              Value comparisons passed:
+              {{ stona100_value_diagnostics.completed_objects | length }}/59
+
+        - name: Zweryfikuj zgodność danych SQLite i PostgreSQL
+          ansible.builtin.assert:
+            that:
+              - stona100_ddl_report.rc | int == 0
+              - "'DDL object validation: PASS' in stona100_ddl_report.stderr"
+              - "'DATA COUNT VALIDATION: PASS (59/59)' in stona100_ddl_report.stderr"
+              - "'DATA VALUE VALIDATION: PASS (59/59)' in stona100_ddl_report.stderr"
+              - "'Migration history is empty: PASS' in stona100_ddl_report.stderr"
+              - "'DATA MIGRATION TEST COMPLETED' in stona100_ddl_report.stdout"
+              - "'ROLLBACK' in stona100_ddl_report.stdout.splitlines()"
+              - "'DDL TEST COMPLETED' in stona100_ddl_report.stdout"
+            success_msg: "PASS: SQLite to PostgreSQL value comparison"
+            fail_msg: "Value comparison failed. Local diagnostics required."
+
+      always:
+        - name: Sprawdź stan schematu po zakończeniu testu
+          ansible.builtin.command:
+            argv:
+              - psql
+              - -X
+              - -w
+              - -A
+              - -t
+              - -q
+              - -v
+              - ON_ERROR_STOP=1
+              - -h
+              - "{{ stona100_test_db_host }}"
+              - -p
+              - "{{ stona100_test_db_port }}"
+              - -U
+              - "{{ stona100_test_db_user }}"
+              - -d
+              - "{{ stona100_test_db_name }}"
+              - -c
+              - "{{ stona100_post_rollback_query }}"
+          environment:
+            PGPASSWORD: "{{ vault_stona100_db_migrator_password }}"
+          register: stona100_schema_after
+          changed_when: false
+          no_log: true
+
+        - name: Potwierdź brak obiektów po teście
+          ansible.builtin.assert:
+            that:
+              - stona100_schema_after.stdout | trim == '0|0'
+            success_msg: "PASS: schema remains empty after ROLLBACK"
+            fail_msg: "Unexpected objects remain in the target schema."
