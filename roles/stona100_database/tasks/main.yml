@@ -1,4 +1,21 @@
 ---
+- name: StoNa100 - kontrola przełączników migracji
+  ansible.builtin.assert:
+    that:
+      - >-
+        not (stona100_migration_commit | bool)
+        or (stona100_migration_enabled | bool)
+      - >-
+        not (stona100_migration_enabled | bool)
+        or not ansible_check_mode
+    success_msg: "PASS: migration safety switches"
+    fail_msg: >-
+      Invalid migration configuration.
+      COMMIT requires migration_enabled=true.
+      Migration cannot run in Ansible check mode.
+  tags:
+    - always
+
 - name: StoNa100 - kontrola wstępna
   ansible.builtin.import_tasks: preflight.yml
   tags:
@@ -40,3 +57,26 @@
   tags:
     - stona100
     - db_session
+
+- name: StoNa100 - migracja PostgreSQL v0.8
+  ansible.builtin.import_tasks: migration.yml
+  when:
+    - stona100_migration_enabled | bool
+    - not ansible_check_mode
+  tags:
+    - stona100
+    - db_migration
+
+- name: StoNa100 - niezależna walidacja uprawnień
+  ansible.builtin.import_tasks: permissions.yml
+  when:
+    - stona100_migration_enabled | bool
+    - not ansible_check_mode
+    - stona100_migration_result is defined
+    - >-
+      (stona100_migration_result | default(''))
+      in ['COMMITTED', 'ALREADY_APPLIED']
+  tags:
+    - stona100
+    - db_migration
+    - db_permissions

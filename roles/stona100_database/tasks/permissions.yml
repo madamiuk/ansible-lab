@@ -1,0 +1,171 @@
+---
+- name: Potwierdź dopuszczalny wynik migracji
+  ansible.builtin.assert:
+    that:
+      - >-
+        stona100_migration_result
+        in ['COMMITTED', 'ALREADY_APPLIED']
+    success_msg: "PASS: independent post-migration audit enabled"
+
+- name: Sprawdź integralność skryptu audytu ACL
+  ansible.builtin.stat:
+    path: "{{ stona100_migration_sql_dir }}/011_test_permissions.sql"
+    checksum_algorithm: sha256
+    follow: false
+  delegate_to: localhost
+  become: false
+  register: stona100_postflight_acl_stat
+
+- name: Potwierdź zatwierdzony skrypt audytu
+  ansible.builtin.assert:
+    that:
+      - stona100_postflight_acl_stat.stat.exists
+      - stona100_postflight_acl_stat.stat.isreg
+      - >-
+        stona100_postflight_acl_stat.stat.checksum
+        == '2df37f303c06d6f8bd1e57ba52d70d62c063bca0a735ed401b08a403e0f14787'
+    success_msg: "PASS: approved ACL audit script"
+
+# ==========================================
+# Independent durable ACL validation
+# ==========================================
+
+- name: Wykonaj niezależny audyt ACL w transakcji READ ONLY
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/psql
+      - -X
+      - -w
+      - -v
+      - ON_ERROR_STOP=1
+      - -h
+      - /var/run/postgresql
+      - -p
+      - "{{ stona100_db_port | string }}"
+      - -U
+      - postgres
+      - -d
+      - "{{ stona100_db_name }}"
+      - -f
+      - "-"
+    stdin: |
+      BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
+
+      SET LOCAL ROLE stona100_owner;
+      SET LOCAL search_path TO stona100, pg_catalog;
+      SET LOCAL statement_timeout = '60s';
+      SET LOCAL lock_timeout = '5s';
+
+      {{ lookup('ansible.builtin.file', stona100_migration_sql_dir + '/011_test_permissions.sql') }}
+
+      ROLLBACK;
+  become: true
+  become_user: postgres
+  register: stona100_postflight_acl
+  changed_when: false
+
+- name: Potwierdź niezależny audyt trwałych ACL
+  ansible.builtin.assert:
+    that:
+      - stona100_postflight_acl.rc | int == 0
+      - >-
+        'APPLICATION PERMISSION AUDIT: PASS'
+        in stona100_postflight_acl.stderr
+      - >-
+        'Permission checks: 2511'
+        in stona100_postflight_acl.stderr
+      - "'ROLLBACK' in stona100_postflight_acl.stdout_lines"
+    success_msg: "PASS: independent durable ACL audit"
+
+# ==========================================
+# Independent migration history validation
+# ==========================================
+
+- name: Odczytaj trwałą historię migracji
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/psql
+      - -X
+      - -w
+      - -A
+      - -t
+      - -q
+      - -v
+      - ON_ERROR_STOP=1
+      - -h
+      - /var/run/postgresql
+      - -p
+      - "{{ stona100_db_port | string }}"
+      - -U
+      - postgres
+      - -d
+      - "{{ stona100_db_name }}"
+      - -c
+      - >-
+        SELECT COALESCE(
+          jsonb_agg(to_jsonb(m) ORDER BY m.version),
+          '[]'::jsonb
+        )
+        FROM stona100.schema_migrations m;
+  become: true
+  become_user: postgres
+  register: stona100_postflight_history_raw
+  changed_when: false
+
+- name: Zinterpretuj historię migracji
+  ansible.builtin.set_fact:
+    stona100_postflight_history: >-
+      {{ stona100_postflight_history_raw.stdout | from_json }}
+
+- name: Potwierdź pojedynczy rekord historii
+  ansible.builtin.assert:
+    that:
+      - stona100_postflight_history | length == 1
+    success_msg: "PASS: exactly one migration history record"
+
+- name: Zweryfikuj trwałe metadane wydania
+  ansible.builtin.assert:
+    that:
+      - >-
+        stona100_postflight_history[0].version | int
+        == stona100_migration_version | int
+      - >-
+        stona100_postflight_history[0].version_label
+        == stona100_migration_version_label
+      - >-
+        stona100_postflight_history[0].source_engine
+        == stona100_migration_source_engine
+      - >-
+        stona100_postflight_history[0].source_version | int
+        == stona100_migration_source_version | int
+      - >-
+        stona100_postflight_history[0].source_sha256
+        == stona100_migration_source_sha256
+      - >-
+        stona100_postflight_history[0].migration_sha256
+        == stona100_migration_release_sha256
+      - >-
+        stona100_postflight_history[0].installed_by
+        == stona100_db_migrator
+      - stona100_postflight_history[0].execution_time_ms | int >= 0
+    success_msg: "PASS: durable migration history matches approved release"
+
+- name: Pokaż zatwierdzoną historię migracji
+  ansible.builtin.debug:
+    msg:
+      - "Version: {{ stona100_postflight_history[0].version }}"
+      - "Release: {{ stona100_postflight_history[0].version_label }}"
+      - "Source version: {{ stona100_postflight_history[0].source_version }}"
+      - "Source SHA256: {{ stona100_postflight_history[0].source_sha256 }}"
+      - "Release SHA256: {{ stona100_postflight_history[0].migration_sha256 }}"
+      - "Installed by: {{ stona100_postflight_history[0].installed_by }}"
+      - "Installed at: {{ stona100_postflight_history[0].installed_at }}"
+      - "Execution time: {{ stona100_postflight_history[0].execution_time_ms }} ms"
+
+# ==========================================
+# Final status
+# ==========================================
+
+- name: Potwierdź zakończenie niezależnej walidacji
+  ansible.builtin.debug:
+    msg: "STONA100 POST-MIGRATION VALIDATION: PASS"

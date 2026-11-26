@@ -1,0 +1,535 @@
+---
+- name: Potwierdź właściwy host i parametry wydania
+  ansible.builtin.assert:
+    that:
+      - inventory_hostname == 'database01'
+      - stona100_db_name == 'stona100'
+      - stona100_db_schema == 'stona100'
+      - stona100_db_owner == 'stona100_owner'
+      - stona100_db_migrator == 'stona100_migrator'
+      - stona100_db_host == '192.168.64.20'
+      - stona100_db_port | int == 5432
+      - stona100_db_sslmode == 'require'
+      - stona100_migration_version | int == 800
+      - stona100_migration_enabled | bool
+      - not ansible_check_mode
+    success_msg: "PASS: migration target and release confirmed"
+
+- name: Pokaż wybrany tryb migracji
+  ansible.builtin.debug:
+    msg:
+      - "Target: {{ stona100_db_host }}"
+      - "Database: {{ stona100_db_name }}"
+      - "Release: {{ stona100_migration_version_label }}"
+      - "COMMIT enabled: {{ stona100_migration_commit | bool }}"
+      - "Release SHA256: {{ stona100_migration_release_sha256 }}"
+
+# ==========================================
+# Verify private artifacts on controller
+# ==========================================
+
+- name: Sprawdź dostępność klienta PostgreSQL
+  ansible.builtin.command:
+    argv:
+      - "{{ stona100_migration_psql }}"
+      - --version
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  register: stona100_migration_client
+
+- name: Pokaż wersję klienta PostgreSQL
+  ansible.builtin.debug:
+    var: stona100_migration_client.stdout
+
+- name: Oblicz sumę manifestu wydania
+  ansible.builtin.stat:
+    path: "{{ stona100_migration_release_manifest }}"
+    checksum_algorithm: sha256
+    follow: false
+  delegate_to: localhost
+  become: false
+  register: stona100_release_manifest_stat
+
+- name: Zweryfikuj przypiętą sumę wydania
+  ansible.builtin.assert:
+    that:
+      - stona100_release_manifest_stat.stat.exists
+      - stona100_release_manifest_stat.stat.isreg
+      - not stona100_release_manifest_stat.stat.islnk
+      - >-
+        stona100_release_manifest_stat.stat.checksum
+        == stona100_migration_release_sha256
+    success_msg: "PASS: pinned release SHA256"
+    fail_msg: "Release manifest does not match approved checksum"
+
+- name: Zweryfikuj wszystkie manifesty migracyjne
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/shasum
+      - -a
+      - "256"
+      - -c
+      - "{{ item.manifest }}"
+    chdir: "{{ item.directory }}"
+  loop: "{{ stona100_migration_manifests }}"
+  loop_control:
+    label: "{{ item.manifest }}"
+  delegate_to: localhost
+  become: false
+  register: stona100_migration_checksum_results
+  changed_when: false
+
+- name: Potwierdź integralność artefaktów
+  ansible.builtin.debug:
+    msg: "PASS: all 8 migration manifests verified"
+
+- name: Zweryfikuj sumę rzeczywistej bazy SQLite
+  ansible.builtin.stat:
+    path: "{{ stona100_migration_project_dir }}/backups/stona100-v070.sqlite"
+    checksum_algorithm: sha256
+    follow: false
+  delegate_to: localhost
+  become: false
+  register: stona100_migration_source_stat
+
+- name: Potwierdź zatwierdzone źródło SQLite
+  ansible.builtin.assert:
+    that:
+      - stona100_migration_source_stat.stat.exists
+      - stona100_migration_source_stat.stat.isreg
+      - >-
+        stona100_migration_source_stat.stat.checksum
+        == stona100_migration_source_sha256
+    success_msg: "PASS: approved SQLite source checksum"
+
+# ==========================================
+# Independent server-side inspection
+# ==========================================
+
+- name: Przygotuj zapytanie kontrolne stanu bazy
+  ansible.builtin.set_fact:
+    stona100_migration_state_query: >-
+      SELECT jsonb_build_object(
+        'database', current_database(),
+        'server_version', current_setting('server_version_num'),
+        'relations',
+        (
+          SELECT COUNT(*)
+          FROM pg_class
+          WHERE relnamespace = 'stona100'::regnamespace
+        ),
+        'functions',
+        (
+          SELECT COUNT(*)
+          FROM pg_proc
+          WHERE pronamespace = 'stona100'::regnamespace
+        ),
+        'history_exists',
+        to_regclass('stona100.schema_migrations') IS NOT NULL,
+        'schema_acl',
+        (
+          SELECT nspacl::text
+          FROM pg_namespace
+          WHERE nspname = 'stona100'
+        ),
+        'default_acl',
+        (
+          SELECT COALESCE(
+            jsonb_agg(to_jsonb(d) ORDER BY d.oid),
+            '[]'::jsonb
+          )
+          FROM pg_default_acl d
+          WHERE defaclrole = 'stona100_owner'::regrole
+        )
+      );
+
+    stona100_migration_admin_psql:
+      - /usr/bin/psql
+      - -X
+      - -w
+      - -A
+      - -t
+      - -q
+      - -v
+      - ON_ERROR_STOP=1
+      - -h
+      - /var/run/postgresql
+      - -p
+      - "{{ stona100_db_port | string }}"
+      - -U
+      - postgres
+      - -d
+      - "{{ stona100_db_name }}"
+
+- name: Sprawdź stan docelowy przed migracją
+  ansible.builtin.command:
+    argv: >-
+      {{
+        stona100_migration_admin_psql
+        + ['-c', stona100_migration_state_query]
+      }}
+  become: true
+  become_user: postgres
+  register: stona100_migration_before
+  changed_when: false
+
+- name: Zinterpretuj stan docelowy
+  ansible.builtin.set_fact:
+    stona100_migration_state_before: >-
+      {{ stona100_migration_before.stdout | from_json }}
+
+- name: Potwierdź dopuszczalny stan początkowy
+  ansible.builtin.assert:
+    that:
+      - stona100_migration_state_before.database == 'stona100'
+      - stona100_migration_state_before.server_version | int >= 170000
+      - stona100_migration_state_before.server_version | int < 180000
+      - >-
+        (
+          stona100_migration_state_before.relations | int == 0
+          and
+          stona100_migration_state_before.functions | int == 0
+          and
+          not stona100_migration_state_before.history_exists
+        )
+        or
+        stona100_migration_state_before.history_exists
+    success_msg: "PASS: acceptable initial database state"
+    fail_msg: "Unexpected database objects without migration history"
+
+# ==========================================
+# Execute migration from trusted controller
+# ==========================================
+
+- name: Uruchom migrator PostgreSQL v0.8
+  block:
+
+    - name: Wykonaj transakcyjną migrację przez TLS
+      ansible.builtin.command:
+        argv:
+          - "{{ stona100_migration_psql }}"
+          - -X
+          - -w
+          - -v
+          - ON_ERROR_STOP=1
+          - -v
+          - VERBOSITY=verbose
+          - -v
+          - "source_sha256={{ stona100_migration_source_sha256 }}"
+          - -v
+          - "migration_sha256={{ stona100_migration_release_sha256 }}"
+          - -v
+          - "migration_commit={{ 'true' if (stona100_migration_commit | bool) else 'false' }}"
+          - -h
+          - "{{ stona100_db_host }}"
+          - -p
+          - "{{ stona100_db_port | string }}"
+          - -U
+          - "{{ stona100_db_migrator }}"
+          - -d
+          - "{{ stona100_db_name }}"
+          - -f
+          - "{{ stona100_migration_script }}"
+        chdir: "{{ stona100_migration_export_dir }}"
+      delegate_to: localhost
+      become: false
+      environment:
+        PGPASSWORD: "{{ stona100_db_migrator_password }}"
+        PGSSLMODE: "{{ stona100_db_sslmode }}"
+        PGGSSENCMODE: disable
+        PGCONNECT_TIMEOUT: "{{ stona100_migration_connect_timeout | string }}"
+        PGPASSFILE: /dev/null
+        PGCLIENTENCODING: UTF8
+        PGAPPNAME: stona100_migration_v080
+        LC_ALL: C
+      register: stona100_migration_raw
+      no_log: true
+      failed_when: false
+      changed_when: >-
+        stona100_migration_raw.rc == 0
+        and
+        'MIGRATION RESULT: COMMITTED'
+        in stona100_migration_raw.stdout_lines
+
+    - name: Przygotuj bezpieczny raport migracji
+      ansible.builtin.set_fact:
+        stona100_migration_result: >-
+          {{
+            (
+              stona100_migration_raw.stdout
+              | regex_findall(
+                  '(?m)^MIGRATION RESULT: (COMMITTED|DRY_RUN_ROLLBACK|ALREADY_APPLIED)$'
+                )
+              | first
+            )
+            | default('FAILED')
+          }}
+
+        stona100_migration_report:
+
+          rc: "{{ stona100_migration_raw.rc }}"
+
+          session_preflight: >-
+            {{
+              'MIGRATION SESSION PREFLIGHT: PASS'
+              in stona100_migration_raw.stderr
+            }}
+
+          transaction_preflight: >-
+            {{
+              'MIGRATION TRANSACTION PREFLIGHT: PASS'
+              in stona100_migration_raw.stderr
+            }}
+
+          lock_acquired: >-
+            {{
+              'MIGRATION LOCK ACQUIRED'
+              in stona100_migration_raw.stdout_lines
+            }}
+
+          lock_released: >-
+            {{
+              'MIGRATION LOCK RELEASED'
+              in stona100_migration_raw.stdout_lines
+            }}
+
+          objects_pass: >-
+            {{
+              'MIGRATION OBJECT VALIDATION: PASS'
+              in stona100_migration_raw.stderr
+            }}
+
+          identities_pass: >-
+            {{
+              'IDENTITY SEQUENCE VALIDATION: PASS (7/7)'
+              in stona100_migration_raw.stderr
+            }}
+
+          permissions_configured: >-
+            {{
+              'APPLICATION PERMISSIONS: CONFIGURED'
+              in stona100_migration_raw.stderr
+            }}
+
+          permissions_pass: >-
+            {{
+              'APPLICATION PERMISSION AUDIT: PASS'
+              in stona100_migration_raw.stderr
+            }}
+
+          acl_checks: >-
+            {{
+              stona100_migration_raw.stderr
+              | regex_findall('Permission checks: ([0-9]+)')
+            }}
+
+          value_checks: >-
+            {{
+              stona100_migration_raw.stderr
+              | regex_findall('PASS: ([a-z_]+) values')
+              | unique
+              | list
+            }}
+
+          history_registered: >-
+            {{
+              'MIGRATION HISTORY REGISTERED: PASS'
+              in stona100_migration_raw.stderr
+            }}
+
+          history_matches: >-
+            {{
+              'MIGRATION VERSION AND CHECKSUMS: MATCH'
+              in stona100_migration_raw.stderr
+            }}
+
+          commit_seen: >-
+            {{
+              'COMMIT'
+              in stona100_migration_raw.stdout_lines
+            }}
+
+          rollback_seen: >-
+            {{
+              'ROLLBACK'
+              in stona100_migration_raw.stdout_lines
+            }}
+
+          procedure_completed: >-
+            {{
+              '=== MIGRATION PROCEDURE COMPLETED ==='
+              in stona100_migration_raw.stdout_lines
+            }}
+
+          sqlstates: >-
+            {{
+              stona100_migration_raw.stderr
+              | regex_findall('(?:ERROR|FATAL|BŁĄD):\\s+([0-9A-Z]{5}):')
+              | unique
+              | list
+            }}
+
+      no_log: true
+
+    - name: Pokaż bezpieczne podsumowanie migracji
+      ansible.builtin.debug:
+        msg:
+          - "Result: {{ stona100_migration_result }}"
+          - "Return code: {{ stona100_migration_report.rc }}"
+          - "Session preflight: {{ stona100_migration_report.session_preflight }}"
+          - "Transaction preflight: {{ stona100_migration_report.transaction_preflight }}"
+          - "Lock acquired: {{ stona100_migration_report.lock_acquired }}"
+          - "Lock released: {{ stona100_migration_report.lock_released }}"
+          - "Object validation: {{ stona100_migration_report.objects_pass }}"
+          - "Identity validation: {{ stona100_migration_report.identities_pass }}"
+          - "Permissions configured: {{ stona100_migration_report.permissions_configured }}"
+          - "ACL audit: {{ stona100_migration_report.permissions_pass }}"
+          - "ACL checks: {{ stona100_migration_report.acl_checks }}"
+          - "Value checks: {{ stona100_migration_report.value_checks | length }}/59"
+          - "History registered: {{ stona100_migration_report.history_registered }}"
+          - "Existing history matches: {{ stona100_migration_report.history_matches }}"
+          - "COMMIT seen: {{ stona100_migration_report.commit_seen }}"
+          - "ROLLBACK seen: {{ stona100_migration_report.rollback_seen }}"
+          - "Procedure completed: {{ stona100_migration_report.procedure_completed }}"
+          - "SQLSTATE: {{ stona100_migration_report.sqlstates }}"
+
+    - name: Zweryfikuj wspólne warunki zakończenia migracji
+      ansible.builtin.assert:
+        that:
+          - stona100_migration_report.rc | int == 0
+          - stona100_migration_report.session_preflight | bool
+          - stona100_migration_report.transaction_preflight | bool
+          - stona100_migration_report.lock_acquired | bool
+          - stona100_migration_report.lock_released | bool
+          - stona100_migration_report.objects_pass | bool
+          - stona100_migration_report.permissions_pass | bool
+          - >-
+            stona100_migration_report.acl_checks
+            == [stona100_migration_expected_acl_checks | string]
+          - stona100_migration_report.procedure_completed | bool
+          - >-
+            stona100_migration_result
+            in ['COMMITTED', 'DRY_RUN_ROLLBACK', 'ALREADY_APPLIED']
+        success_msg: "PASS: migration procedure validation"
+        fail_msg: >-
+          Migration procedure failed.
+          Inspect the safe report and server-side state.
+          Do not retry blindly.
+
+    - name: Zweryfikuj nowo wykonaną migrację
+      ansible.builtin.assert:
+        that:
+          - stona100_migration_report.identities_pass | bool
+          - stona100_migration_report.permissions_configured | bool
+          - stona100_migration_report.history_registered | bool
+          - stona100_migration_report.value_checks | length == 59
+          - >-
+            stona100_migration_result
+            ==
+            (
+              'COMMITTED'
+              if (stona100_migration_commit | bool)
+              else 'DRY_RUN_ROLLBACK'
+            )
+        success_msg: "PASS: new migration validation"
+      when: stona100_migration_result != 'ALREADY_APPLIED'
+
+    - name: Zweryfikuj pominięcie istniejącej migracji
+      ansible.builtin.assert:
+        that:
+          - stona100_migration_report.history_matches | bool
+          - not stona100_migration_report.commit_seen
+          - stona100_migration_report.rollback_seen | bool
+          - not stona100_migration_report.history_registered
+        success_msg: "PASS: existing release matches, import skipped"
+      when: stona100_migration_result == 'ALREADY_APPLIED'
+
+    - name: Zweryfikuj decyzję transakcyjną
+      ansible.builtin.assert:
+        that:
+          - >-
+            (stona100_migration_report.commit_seen | bool)
+            ==
+            (stona100_migration_result == 'COMMITTED')
+          - >-
+            (stona100_migration_report.rollback_seen | bool)
+            ==
+            (stona100_migration_result != 'COMMITTED')
+        success_msg: "PASS: transaction decision"
+
+  always:
+
+    # Check durable state even if execution or reporting failed.
+    # A failed client after COMMIT does not imply database rollback.
+
+    - name: Niezależnie sprawdź stan docelowy po migracji
+      ansible.builtin.command:
+        argv: >-
+          {{
+            stona100_migration_admin_psql
+            + ['-c', stona100_migration_state_query]
+          }}
+      become: true
+      become_user: postgres
+      register: stona100_migration_after
+      changed_when: false
+
+    - name: Zinterpretuj stan końcowy bazy
+      ansible.builtin.set_fact:
+        stona100_migration_state_after: >-
+          {{ stona100_migration_after.stdout | from_json }}
+
+    - name: Pokaż trwały stan bazy
+      ansible.builtin.debug:
+        msg:
+          - "Relations: {{ stona100_migration_state_after.relations }}"
+          - "Functions: {{ stona100_migration_state_after.functions }}"
+          - "Migration history exists: {{ stona100_migration_state_after.history_exists }}"
+          - >-
+            State unchanged:
+            {{
+              stona100_migration_state_after
+              == stona100_migration_state_before
+            }}
+
+    - name: Potwierdź brak trwałych zmian po próbie generalnej
+      ansible.builtin.assert:
+        that:
+          - >-
+            stona100_migration_state_after
+            == stona100_migration_state_before
+        success_msg: "PASS: schema and ACL unchanged after dry run"
+        fail_msg: "Unexpected durable database changes"
+      when: not (stona100_migration_commit | bool)
+
+    - name: Potwierdź brak zmian po pominięciu migracji
+      ansible.builtin.assert:
+        that:
+          - >-
+            stona100_migration_state_after
+            == stona100_migration_state_before
+        success_msg: "PASS: migration left existing state unchanged"
+      when: >-
+        (stona100_migration_result | default('FAILED'))
+        == 'ALREADY_APPLIED'
+
+# ==========================================
+# Successful execution summary
+# ==========================================
+
+- name: Potwierdź obecność zatwierdzonej historii migracji
+  ansible.builtin.assert:
+    that:
+      - stona100_migration_state_after.history_exists | bool
+      - >-
+        stona100_migration_state_after.functions | int
+        == stona100_migration_expected_functions | int
+    success_msg: "PASS: durable migration objects detected"
+  when: >-
+    stona100_migration_result
+    in ['COMMITTED', 'ALREADY_APPLIED']
+
+- name: Zakończ procedurę migracyjną
+  ansible.builtin.debug:
+    msg: "StoNa100 migration v0.8: {{ stona100_migration_result }}"

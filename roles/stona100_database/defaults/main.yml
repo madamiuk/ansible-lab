@@ -8,23 +8,119 @@ stona100_db_port: 5432
 stona100_db_encoding: UTF8
 
 # PostgreSQL roles
+
 stona100_db_owner: stona100_owner
 stona100_db_migrator: stona100_migrator
 stona100_db_app_user: stona100_app
 stona100_db_readonly_user: stona100_readonly
 
 # Connection settings
+
 stona100_db_sslmode: require
 
 # Passwords stored in Ansible Vault
+
 stona100_db_migrator_password: "{{ vault_stona100_db_migrator_password }}"
 stona100_db_app_password: "{{ vault_stona100_db_app_password }}"
 stona100_db_readonly_password: "{{ vault_stona100_db_readonly_password }}"
 
 # Session configuration
+
 stona100_db_search_path: "{{ stona100_db_schema }}"
 
 stona100_db_session_roles:
   - "{{ stona100_db_migrator }}"
   - "{{ stona100_db_app_user }}"
   - "{{ stona100_db_readonly_user }}"
+
+# ==========================================
+# Migration safety switches
+# ==========================================
+
+stona100_migration_enabled: false
+
+stona100_migration_commit: false
+
+# ==========================================
+# Migration release metadata
+# ==========================================
+
+stona100_migration_version: 800
+
+stona100_migration_version_label: "0.8"
+
+stona100_migration_source_engine: SQLite
+
+stona100_migration_source_version: 700
+
+stona100_migration_source_sha256: "70930a584c40b798ddf8e2a0e4fdadc5b23419d9963b032c67007b52df4e7635"
+
+stona100_migration_release_sha256: "73bb9d7f44cf5d54e453d9d97e2553097ee8200ecee931458ce756420b5c072b"
+
+# ==========================================
+# Private migration artifacts on controller
+# ==========================================
+
+stona100_migration_project_dir: "{{ lookup('env', 'HOME') }}/projects/stona100_v02"
+
+stona100_migration_sql_dir: "{{ stona100_migration_project_dir }}/postgresql"
+
+stona100_migration_export_dir: "{{ stona100_migration_project_dir }}/exports/postgresql-v080"
+
+stona100_migration_script: "{{ stona100_migration_sql_dir }}/013_migrate_v080.sql"
+
+stona100_migration_release_manifest: "{{ stona100_migration_sql_dir }}/SHA256SUMS.release-v080"
+
+stona100_migration_psql: /opt/homebrew/bin/psql
+
+stona100_migration_connect_timeout: 5
+
+# ==========================================
+# Manifest verification
+# ==========================================
+
+stona100_migration_manifests:
+
+  - directory: "{{ stona100_migration_project_dir }}"
+    manifest: postgresql/SHA256SUMS.release-v080
+
+  - directory: "{{ stona100_migration_project_dir }}"
+    manifest: exports/stona100-v070.sqlite.sha256
+
+  - directory: "{{ stona100_migration_sql_dir }}"
+    manifest: SHA256SUMS
+
+  - directory: "{{ stona100_migration_export_dir }}"
+    manifest: SHA256SUMS
+
+  - directory: "{{ stona100_migration_project_dir }}"
+    manifest: exports/stona100-v080-validation.sha256
+
+  - directory: "{{ stona100_migration_project_dir }}"
+    manifest: postgresql/SHA256SUMS.tests
+
+  - directory: "{{ stona100_migration_project_dir }}"
+    manifest: postgresql/SHA256SUMS.concurrency
+
+  - directory: "{{ stona100_migration_project_dir }}"
+    manifest: postgresql/SHA256SUMS.permissions
+
+# ==========================================
+# Expected migration inventory
+# ==========================================
+
+stona100_migration_expected_tables: 46
+
+stona100_migration_expected_views: 14
+
+stona100_migration_expected_indexes: 65
+
+stona100_migration_expected_sequences: 7
+
+stona100_migration_expected_functions: 7
+
+stona100_migration_expected_triggers: 7
+
+stona100_migration_expected_business_rows: 3817
+
+stona100_migration_expected_acl_checks: 2511
